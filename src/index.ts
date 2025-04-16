@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
 /**
- * MCP server para referências de componentes Filament
- * Este servidor fornece ferramentas para:
- * - Obter informações detalhadas sobre campos de formulário do Filament
+ * MCP server for Filament component references
+ * This server provides tools to:
+ * - Get detailed information about Filament form fields
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -18,7 +18,7 @@ import axios from "axios";
 import * as cheerio from "cheerio";
 
 /**
- * Interface para informações de campo de formulário
+ * Interface for form field information
  */
 interface FieldInfo {
   name: string;
@@ -30,7 +30,7 @@ interface FieldInfo {
 }
 
 /**
- * Interface para informações de propriedade de campo
+ * Interface for field property information
  */
 interface FieldProp {
   name: string;
@@ -41,7 +41,7 @@ interface FieldProp {
 }
 
 /**
- * Interface para exemplos de campo
+ * Interface for field example
  */
 interface FieldExample {
   title: string;
@@ -50,7 +50,7 @@ interface FieldExample {
 }
 
 /**
- * Classe FilamentServer que manipula a funcionalidade de referência de componentes
+ * FilamentServer class that handles the component reference functionality
  */
 class FilamentServer {
   private server: Server;
@@ -88,7 +88,7 @@ class FilamentServer {
   }
 
   /**
-   * Configura os manipuladores de ferramentas para o servidor
+   * Set up the tool handlers for the server
    */
   private setupToolHandlers() {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -96,14 +96,14 @@ class FilamentServer {
         {
           name: "get_filament_form_field",
           description:
-            "Obter informações detalhadas sobre um campo de formulário específico do Filament",
+            "Get detailed information about a specific Filament form field",
           inputSchema: {
             type: "object",
             properties: {
               fieldName: {
                 type: "string",
                 description:
-                  'Nome do campo de formulário do Filament (ex: "text-input", "select", "repeater")',
+                  'Name of the Filament form field (e.g., "text-input", "select", "repeater")',
               },
             },
             required: ["fieldName"],
@@ -119,60 +119,60 @@ class FilamentServer {
         default:
           throw new McpError(
             ErrorCode.MethodNotFound,
-            `Ferramenta desconhecida: ${request.params.name}`
+            `Unknown tool: ${request.params.name}`
           );
       }
     });
   }
 
   /**
-   * Valida o nome do campo nos argumentos
+   * Validates field name from arguments
    */
   private validateFieldName(args: any): string {
     if (!args?.fieldName || typeof args.fieldName !== "string") {
       throw new McpError(
         ErrorCode.InvalidParams,
-        "O nome do campo é obrigatório e deve ser uma string"
+        "Field name is required and must be a string"
       );
     }
     return args.fieldName.toLowerCase();
   }
 
   /**
-   * Trata erros do Axios de forma consistente
+   * Handles Axios errors consistently
    */
   private handleAxiosError(error: unknown, context: string): never {
     if (axios.isAxiosError(error)) {
       console.error(
-        `Erro do Axios durante "${context}": ${error.message}`,
+        `Axios error during "${context}": ${error.message}`,
         error.response?.status,
         error.config?.url
       );
       if (error.response?.status === 404) {
         throw new McpError(
           ErrorCode.InvalidParams,
-          `${context} - Recurso não encontrado (404)`
+          `${context} - Resource not found (404)`
         );
       } else {
         const status = error.response?.status || "N/A";
         const message = error.message;
         throw new McpError(
           ErrorCode.InternalError,
-          `Falha durante a operação "${context}". Status: ${status}. Erro: ${message}`
+          `Failed during "${context}" operation. Status: ${status}. Error: ${message}`
         );
       }
     }
-    console.error(`Erro não-Axios durante "${context}":`, error);
+    console.error(`Non-Axios error during "${context}":`, error);
     throw error instanceof McpError
       ? error
       : new McpError(
           ErrorCode.InternalError,
-          `Ocorreu um erro inesperado durante "${context}".`
+          `An unexpected error occurred during "${context}".`
         );
   }
 
   /**
-   * Cria uma resposta de sucesso padronizada
+   * Creates a standardized success response
    */
   private createSuccessResponse(data: any) {
     return {
@@ -186,51 +186,48 @@ class FilamentServer {
   }
 
   /**
-   * Manipula a solicitação da ferramenta get_filament_form_field
+   * Handle the get_filament_form_field tool request
    */
   private async handleGetFormField(args: any) {
     const fieldName = this.validateFieldName(args);
 
     try {
-      // Verifica o cache primeiro
+      // Check cache first
       if (this.fieldCache.has(fieldName)) {
         const cachedData = this.fieldCache.get(fieldName);
-        console.error(`Cache hit para ${fieldName}`);
+        console.error(`Cache hit for ${fieldName}`);
         return this.createSuccessResponse(cachedData);
       }
-      console.error(`Cache miss para ${fieldName}, buscando...`);
+      console.error(`Cache miss for ${fieldName}, fetching...`);
 
-      // Busca detalhes do campo
+      // Fetch field details
       const fieldInfo = await this.fetchFieldDetails(fieldName);
 
-      // Salva no cache
+      // Save to cache
       this.fieldCache.set(fieldName, fieldInfo);
-      console.error(`Detalhes em cache para ${fieldName}`);
+      console.error(`Cached details for ${fieldName}`);
 
       return this.createSuccessResponse(fieldInfo);
     } catch (error) {
-      console.error(`Erro ao buscar detalhes para ${fieldName}:`, error);
+      console.error(`Error fetching details for ${fieldName}:`, error);
       if (error instanceof McpError) {
         throw error;
       }
-      this.handleAxiosError(
-        error,
-        `buscando detalhes para o campo "${fieldName}"`
-      );
+      this.handleAxiosError(error, `fetching details for field "${fieldName}"`);
     }
   }
 
   /**
-   * Busca detalhes do campo da documentação do Filament
+   * Fetches field details from the Filament documentation
    */
   private async fetchFieldDetails(fieldName: string): Promise<FieldInfo> {
     const fieldUrl = `${this.FILAMENT_DOCS_URL}/forms/fields/${fieldName}`;
-    console.error(`Buscando URL: ${fieldUrl}`);
+    console.error(`Fetching URL: ${fieldUrl}`);
     const response = await this.axiosInstance.get(fieldUrl);
     const $ = cheerio.load(response.data);
-    console.error(`HTML carregado com sucesso para ${fieldName}`);
+    console.error(`Successfully loaded HTML for ${fieldName}`);
 
-    // Extrai informações do campo
+    // Extract field information
     const title = $("h1").first().text().trim() || fieldName;
     const description = this.extractDescription($);
     const usage = this.extractUsage($);
@@ -238,10 +235,10 @@ class FilamentServer {
     const props = this.extractProps($);
 
     console.error(
-      `Extraído para ${fieldName}: Título=${title}, Desc=${description.substring(
+      `Extracted for ${fieldName}: Title=${title}, Desc=${description.substring(
         0,
         50
-      )}..., Props=${props.length}, Exemplos=${examples.length}`
+      )}..., Props=${props.length}, Examples=${examples.length}`
     );
 
     return {
@@ -255,13 +252,13 @@ class FilamentServer {
   }
 
   /**
-   * Extrai a descrição do campo da página
+   * Extracts field description from the page
    */
   private extractDescription($: cheerio.CheerioAPI): string {
-    // Encontra o primeiro parágrafo após o h1
+    // Find the first paragraph after the h1
     const descriptionElement = $("h1").first().nextAll("p").first();
 
-    // Se não encontrar, tenta outro seletor que possa conter a descrição principal
+    // If not found, try another selector that might contain the main description
     if (!descriptionElement.length) {
       const mainContent = $("main").first();
       const firstPara = mainContent.find("p").first();
@@ -272,10 +269,10 @@ class FilamentServer {
   }
 
   /**
-   * Extrai o exemplo de uso básico do campo
+   * Extracts basic usage example of the field
    */
   private extractUsage($: cheerio.CheerioAPI): string {
-    // Tenta encontrar a primeira seção de código após algum título como "Basic Usage" ou similar
+    // Try to find the first code section after a title like "Basic Usage" or similar
     const basicUsageHeading = $("h2, h3")
       .filter((_, el) => {
         const text = $(el).text().toLowerCase();
@@ -294,32 +291,32 @@ class FilamentServer {
       }
     }
 
-    // Alternativa: apenas pega o primeiro bloco de código da página
+    // Alternative: just take the first code block on the page
     const firstCodeBlock = $("pre").first();
     return firstCodeBlock.length ? firstCodeBlock.text().trim() : "";
   }
 
   /**
-   * Extrai exemplos de código da página
+   * Extracts code examples from the page
    */
   private extractExamples($: cheerio.CheerioAPI): FieldExample[] {
     const examples: FieldExample[] = [];
 
-    // Encontra todos os blocos de código com seus títulos precedentes
+    // Find all code blocks with their preceding titles
     $("pre").each((_, element) => {
       const codeBlock = $(element);
       const code = codeBlock.text().trim();
 
       if (code) {
-        let title = "Exemplo de Código";
+        let title = "Code Example";
         let description: string | undefined = undefined;
 
-        // Tenta encontrar o título mais próximo anterior (h2, h3, h4)
+        // Try to find the nearest preceding heading (h2, h3, h4)
         const prevHeading = codeBlock.prev("h2, h3, h4");
         if (prevHeading.length) {
           title = prevHeading.text().trim();
 
-          // Tenta encontrar uma descrição (parágrafo entre o título e o código)
+          // Try to find a description (paragraph between heading and code)
           const descPara = prevHeading.nextUntil(codeBlock, "p").first();
           if (descPara.length) {
             description = descPara.text().trim();
@@ -334,12 +331,12 @@ class FilamentServer {
   }
 
   /**
-   * Extrai propriedades do campo da seção de referência da API
+   * Extracts field properties from the API reference section
    */
   private extractProps($: cheerio.CheerioAPI): FieldProp[] {
     const props: FieldProp[] = [];
 
-    // Encontra a seção de referência da API/Métodos/Propriedades
+    // Find the API reference/Methods/Properties section
     const apiSectionHeadings = $("h2, h3").filter((_, el) => {
       const text = $(el).text().toLowerCase();
       return (
@@ -352,26 +349,26 @@ class FilamentServer {
     });
 
     if (!apiSectionHeadings.length) {
-      console.error("Seção de API/Métodos não encontrada");
+      console.error("API/Methods section not found");
       return props;
     }
 
-    // Para cada seção de API/Métodos encontrada
+    // For each API/Methods section found
     apiSectionHeadings.each((_, heading) => {
       const headingElement = $(heading);
 
-      // Procura por tabelas após o cabeçalho
+      // Look for tables after the heading
       const tables = headingElement.nextUntil("h2, h3", "table");
       tables.each((_, table) => {
         const tableElement = $(table);
 
-        // Extrai cabeçalhos da tabela
+        // Extract table headers
         const headers: string[] = [];
         tableElement.find("thead th").each((_, th) => {
           headers.push($(th).text().trim().toLowerCase());
         });
 
-        // Determina índices das colunas importantes
+        // Determine indices of important columns
         const methodIndex =
           headers.indexOf("method") !== -1
             ? headers.indexOf("method")
@@ -380,12 +377,12 @@ class FilamentServer {
         const typeIndex = headers.indexOf("type");
         const defaultIndex = headers.indexOf("default");
 
-        // Se não encontrar colunas essenciais, pula esta tabela
+        // Skip this table if essential columns are not found
         if (methodIndex === -1 || descriptionIndex === -1) {
           return;
         }
 
-        // Processa cada linha da tabela
+        // Process each row in the table
         tableElement.find("tbody tr").each((_, tr) => {
           const cells = $(tr).find("td");
           const name = cells.eq(methodIndex).text().trim();
@@ -397,19 +394,19 @@ class FilamentServer {
               description,
             };
 
-            // Adiciona tipo se disponível
+            // Add type if available
             if (typeIndex !== -1) {
               const type = cells.eq(typeIndex).text().trim();
               if (type) prop.type = type;
             }
 
-            // Adiciona valor padrão se disponível
+            // Add default value if available
             if (defaultIndex !== -1) {
               const defaultValue = cells.eq(defaultIndex).text().trim();
               if (defaultValue) prop.default = defaultValue;
             }
 
-            // Verifica se é obrigatório com base na descrição
+            // Check if required based on description
             if (description.toLowerCase().includes("required")) {
               prop.required = true;
             }
@@ -419,12 +416,12 @@ class FilamentServer {
         });
       });
 
-      // Também procura por listas (dl, dt, dd) que podem conter propriedades
+      // Also look for lists (dl, dt, dd) that may contain properties
       const lists = headingElement.nextUntil("h2, h3", "dl");
       lists.each((_, list) => {
         const listElement = $(list);
 
-        // Busca todos os termos (dt) e suas descrições (dd)
+        // Find all terms (dt) and their descriptions (dd)
         listElement.find("dt").each((_, term) => {
           const termElement = $(term);
           const name = termElement.text().trim();
@@ -437,7 +434,7 @@ class FilamentServer {
               description,
             };
 
-            // Verifica se é obrigatório com base na descrição
+            // Check if required based on description
             if (description.toLowerCase().includes("required")) {
               prop.required = true;
             }
@@ -452,18 +449,18 @@ class FilamentServer {
   }
 
   /**
-   * Executa o servidor
+   * Run the server
    */
   async run() {
     const transport = new StdioServerTransport();
     await this.server.connect(transport);
-    console.error("Servidor MCP Filament rodando em stdio");
+    console.error("Filament MCP server running on stdio");
   }
 }
 
-// Cria e executa o servidor
+// Create and run the server
 const server = new FilamentServer();
 server.run().catch((error) => {
-  console.error("Falha ao executar o servidor:", error);
+  console.error("Server failed to run:", error);
   process.exit(1);
 });
