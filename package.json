@@ -1,0 +1,43 @@
+{
+  "name": "filmanet-mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server for Filament",
+  "type": "module",
+  "license": "MIT",
+  "bin": {
+    "filmanet-server": "build/index.js"
+  },
+  "files": [
+    "build"
+  ],
+  "scripts": {
+    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
+    "prepare": "npm run build",
+    "watch": "tsc --watch",
+    "inspector": "npx @modelcontextprotocol/inspector build/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^0.6.0",
+    "axios": "^1.7.9",
+    "cheerio": "^1.0.0-rc.12"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "typescript": "^5.3.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andrefelipe18/filmanet-mcp-server.git"
+  },
+  "author": "André Domingues",
+  "bugs": {
+    "url": "https://github.com/andrefelipe18/filmanet-mcp-server/issues"
+  },
+  "homepage": "https://github.com/andrefelipe18/filmanet-mcp-server#readme",
+  "keywords": [
+    "filmanet",
+    "MCP",
+    "model context protocol",
+    "component references"
+  ]
+} 
