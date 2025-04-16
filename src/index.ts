@@ -4,6 +4,8 @@
  * MCP server for Filament component references
  * This server provides tools to:
  * - Get detailed information about Filament form fields
+ * - Browse local Filament documentation files
+ * - Search through Filament documentation
  */
 
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
@@ -19,10 +21,28 @@ import * as cheerio from "cheerio";
 import * as fs from "fs";
 import * as path from "path";
 import * as os from "os";
+import { promisify } from "util";
+import { fileURLToPath } from "url";
+
+// Obter o equivalente a __dirname em ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Promisificar funções síncronas do fs
+const readFileAsync = promisify(fs.readFile);
+const readdirAsync = promisify(fs.readdir);
+const statAsync = promisify(fs.stat);
 
 // Configuração de log para um arquivo separado em vez de stdout/stderr
 const LOG_ENABLED = true;
 const LOG_FILE = path.join(os.tmpdir(), "filament-mcp-server.log");
+
+// Caminho base para os arquivos de documentação local
+const DOCS_BASE_PATH = path.join(
+  path.dirname(path.dirname(__dirname)),
+  "data",
+  "filament-docs"
+);
 
 // Função de log que escreve em arquivo separado e não na saída padrão
 function log(...args: any[]) {
@@ -77,6 +97,36 @@ interface FieldExample {
 }
 
 /**
+ * Interface for documentation file
+ */
+interface DocFile {
+  name: string;
+  path: string;
+  isDirectory: boolean;
+  title?: string;
+}
+
+/**
+ * Interface for documentation package
+ */
+interface DocPackage {
+  name: string;
+  path: string;
+  description?: string;
+}
+
+/**
+ * Interface for documentation search result
+ */
+interface DocSearchResult {
+  title: string;
+  path: string;
+  package: string;
+  excerpt: string;
+  relevance: number;
+}
+
+/**
  * FilamentServer class that handles the component reference functionality
  */
 class FilamentServer {
@@ -84,6 +134,10 @@ class FilamentServer {
   private axiosInstance;
   private fieldCache: Map<string, FieldInfo> = new Map();
   private readonly FILAMENT_DOCS_URL = "https://filamentphp.com/docs/3.x";
+
+  // Cache para documentação local
+  private docPackagesCache: DocPackage[] | null = null;
+  private docContentCache: Map<string, string> = new Map();
 
   constructor() {
     this.server = new Server(
@@ -137,6 +191,78 @@ class FilamentServer {
             required: ["fieldName"],
           },
         },
+        {
+          name: "list_filament_packages",
+          description:
+            "Lista os pacotes disponíveis na documentação local do Filament",
+          inputSchema: {
+            type: "object",
+            properties: {},
+          },
+        },
+        {
+          name: "list_filament_docs",
+          description:
+            "Lista os arquivos de documentação disponíveis em um pacote específico",
+          inputSchema: {
+            type: "object",
+            properties: {
+              package: {
+                type: "string",
+                description:
+                  "Nome do pacote (ex: 'forms', 'tables', 'panels', etc.)",
+              },
+              path: {
+                type: "string",
+                description:
+                  "Caminho opcional dentro do pacote (ex: 'fields', 'layout', etc.)",
+              },
+            },
+            required: ["package"],
+          },
+        },
+        {
+          name: "get_filament_doc",
+          description:
+            "Obtém o conteúdo de um arquivo específico da documentação do Filament",
+          inputSchema: {
+            type: "object",
+            properties: {
+              package: {
+                type: "string",
+                description:
+                  "Nome do pacote (ex: 'forms', 'tables', 'panels', etc.)",
+              },
+              path: {
+                type: "string",
+                description:
+                  "Caminho do arquivo dentro do pacote (ex: 'fields/text-input', 'installation', etc.)",
+              },
+            },
+            required: ["package", "path"],
+          },
+        },
+        {
+          name: "search_filament_docs",
+          description:
+            "Busca um termo em toda a documentação local do Filament",
+          inputSchema: {
+            type: "object",
+            properties: {
+              query: {
+                type: "string",
+                description:
+                  "Termo de busca (ex: 'input', 'validation', 'table', etc.)",
+              },
+              package: {
+                type: "string",
+                description:
+                  "Pacote opcional para limitar a busca (ex: 'forms', 'tables', etc.)",
+              },
+            },
+            required: ["query"],
+          },
+        },
       ],
     }));
 
@@ -144,6 +270,14 @@ class FilamentServer {
       switch (request.params.name) {
         case "get_filament_form_field":
           return await this.handleGetFormField(request.params.arguments);
+        case "list_filament_packages":
+          return await this.handleListPackages();
+        case "list_filament_docs":
+          return await this.handleListDocs(request.params.arguments);
+        case "get_filament_doc":
+          return await this.handleGetDoc(request.params.arguments);
+        case "search_filament_docs":
+          return await this.handleSearchDocs(request.params.arguments);
         default:
           throw new McpError(
             ErrorCode.MethodNotFound,
@@ -461,6 +595,508 @@ class FilamentServer {
     });
 
     return props;
+  }
+
+  /**
+   * Utilitário para extrair título de um arquivo Markdown
+   */
+  private extractTitleFromMarkdown(content: string): string {
+    // Procura por título de nível 1 (# Title)
+    const titleMatch = content.match(/^#\s+(.+)$/m);
+    if (titleMatch) {
+      return titleMatch[1].trim();
+    }
+
+    // Se não encontrar título de nível 1, tenta obter o nome do arquivo sem extensão
+    return "Sem título";
+  }
+
+  /**
+   * Utilitário para obter um trecho do texto contendo a consulta
+   */
+  private getMarkdownExcerpt(
+    content: string,
+    query: string,
+    length: number = 150
+  ): string {
+    // Converter para minúsculas para pesquisa não sensível a maiúsculas/minúsculas
+    const lowerContent = content.toLowerCase();
+    const lowerQuery = query.toLowerCase();
+
+    // Encontrar índice da consulta
+    const index = lowerContent.indexOf(lowerQuery);
+    if (index === -1) {
+      // Se não encontrou a consulta, retorna o início do documento
+      return content.substring(0, Math.min(length, content.length)) + "...";
+    }
+
+    // Calcular início e fim do trecho para mostrar contexto
+    const startPos = Math.max(0, index - 50);
+    const endPos = Math.min(content.length, index + query.length + 100);
+
+    // Adicionar reticências se o trecho não começar do início ou não terminar no fim
+    const prefix = startPos > 0 ? "..." : "";
+    const suffix = endPos < content.length ? "..." : "";
+
+    return prefix + content.substring(startPos, endPos) + suffix;
+  }
+
+  /**
+   * Limpa nome de arquivo/pasta removendo prefixo numérico (ex: "01-installation" -> "installation")
+   */
+  private cleanItemName(name: string): string {
+    // Remove prefixos numéricos como "01-", "02-" etc.
+    return name.replace(/^\d+-/, "").replace(".md", "");
+  }
+
+  /**
+   * Converte caminho de arquivo para título legível
+   */
+  private pathToTitle(filePath: string): string {
+    // Extrair nome do arquivo sem extensão
+    const fileName = path.basename(filePath, ".md");
+
+    // Limpar prefixo numérico
+    const cleanName = this.cleanItemName(fileName);
+
+    // Converter para título com primeira letra maiúscula e traços para espaços
+    return cleanName
+      .split("-")
+      .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(" ");
+  }
+
+  /**
+   * Calcula a relevância de um resultado de pesquisa
+   */
+  private calculateRelevance(content: string, query: string): number {
+    const lowerContent = content.toLowerCase();
+    const lowerQuery = query.toLowerCase();
+
+    // Número de ocorrências
+    const occurrences = (lowerContent.match(new RegExp(lowerQuery, "g")) || [])
+      .length;
+
+    // Verificar se está em um título
+    const titleMatch = lowerContent.match(
+      new RegExp(`^#+\\s+.*${lowerQuery}.*$`, "m")
+    );
+    const titleBonus = titleMatch ? 10 : 0;
+
+    // Posição da primeira ocorrência (mais relevante se aparecer no início)
+    const position = lowerContent.indexOf(lowerQuery);
+    const positionScore =
+      position === -1 ? 0 : Math.max(0, 10 - Math.floor(position / 100));
+
+    return occurrences + titleBonus + positionScore;
+  }
+
+  /**
+   * Handle the list_filament_packages tool request
+   */
+  private async handleListPackages() {
+    try {
+      // Verificar cache primeiro
+      if (this.docPackagesCache) {
+        return this.createSuccessResponse(this.docPackagesCache);
+      }
+
+      // Ler os pacotes do diretório local
+      const packagesPath = path.join(DOCS_BASE_PATH, "packages");
+      const entries = await readdirAsync(packagesPath);
+
+      // Filtrar apenas diretórios e montar objetos de pacote
+      const packages: DocPackage[] = [];
+
+      for (const entry of entries) {
+        const entryPath = path.join(packagesPath, entry);
+        const stats = await statAsync(entryPath);
+
+        if (stats.isDirectory()) {
+          // Verificar se tem arquivo de documentação
+          const docsPath = path.join(entryPath, "docs");
+          let hasDocumentation = false;
+
+          try {
+            const docsStats = await statAsync(docsPath);
+            hasDocumentation = docsStats.isDirectory();
+          } catch (e) {
+            // Ignorar erro se o diretório docs não existir
+          }
+
+          if (hasDocumentation) {
+            // Tentar extrair descrição de um arquivo README.md ou similar
+            let description = `Documentação do pacote ${entry}`;
+
+            try {
+              // Procurar por arquivo de overview ou README
+              const overviewPath = path.join(docsPath, "01-overview.md");
+              const overviewStats = await statAsync(overviewPath);
+
+              if (overviewStats.isFile()) {
+                const content = await readFileAsync(overviewPath, "utf-8");
+                const firstParagraph = content.match(/^#.*\n\n(.*?)(\n\n|$)/s);
+                if (firstParagraph && firstParagraph[1]) {
+                  description = firstParagraph[1].replace(/\n/g, " ").trim();
+                }
+              }
+            } catch (e) {
+              // Ignorar erro se não encontrar arquivo de overview
+            }
+
+            packages.push({
+              name: entry,
+              path: `packages/${entry}`,
+              description,
+            });
+          }
+        }
+      }
+
+      // Ordenar pacotes alfabeticamente
+      packages.sort((a, b) => a.name.localeCompare(b.name));
+
+      // Salvar em cache
+      this.docPackagesCache = packages;
+
+      return this.createSuccessResponse(packages);
+    } catch (error) {
+      log("Erro ao listar pacotes:", error);
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Erro ao listar os pacotes de documentação: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
+
+  /**
+   * Handle the list_filament_docs tool request
+   */
+  private async handleListDocs(args: any) {
+    try {
+      if (!args.package || typeof args.package !== "string") {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          "O parâmetro 'package' é obrigatório e deve ser uma string"
+        );
+      }
+
+      const packageName = args.package.trim();
+      const subPath = args.path ? args.path.trim() : "";
+
+      // Construir o caminho completo para o diretório
+      let dirPath = path.join(DOCS_BASE_PATH, "packages", packageName, "docs");
+
+      if (subPath) {
+        dirPath = path.join(dirPath, subPath);
+      }
+
+      // Verificar se o diretório existe
+      try {
+        const stats = await statAsync(dirPath);
+        if (!stats.isDirectory()) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `O caminho '${packageName}${
+              subPath ? "/" + subPath : ""
+            }' não é um diretório válido`
+          );
+        }
+      } catch (e) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `O pacote ou caminho especificado não existe: ${packageName}${
+            subPath ? "/" + subPath : ""
+          }`
+        );
+      }
+
+      // Ler os arquivos e diretórios
+      const entries = await readdirAsync(dirPath);
+      const files: DocFile[] = [];
+
+      for (const entry of entries) {
+        const entryPath = path.join(dirPath, entry);
+        const stats = await statAsync(entryPath);
+        const isDir = stats.isDirectory();
+
+        // Ignorar arquivos ocultos
+        if (entry.startsWith(".")) {
+          continue;
+        }
+
+        // Montar objeto de arquivo
+        const docFile: DocFile = {
+          name: this.cleanItemName(entry),
+          path: subPath ? `${subPath}/${entry}` : entry,
+          isDirectory: isDir,
+        };
+
+        // Para arquivos .md, tenta extrair título
+        if (!isDir && entry.endsWith(".md")) {
+          try {
+            const content = await readFileAsync(entryPath, "utf-8");
+            docFile.title = this.extractTitleFromMarkdown(content);
+          } catch (e) {
+            // Se não conseguir ler, usa o nome do arquivo como título
+            docFile.title = this.pathToTitle(entry);
+          }
+        } else if (isDir) {
+          // Para diretórios, usa o nome limpo como título
+          docFile.title = this.pathToTitle(entry);
+        }
+
+        files.push(docFile);
+      }
+
+      // Ordenar: primeiro diretórios, depois arquivos
+      files.sort((a, b) => {
+        if (a.isDirectory && !b.isDirectory) return -1;
+        if (!a.isDirectory && b.isDirectory) return 1;
+        return a.path.localeCompare(b.path);
+      });
+
+      return this.createSuccessResponse({
+        package: packageName,
+        path: subPath,
+        files: files,
+      });
+    } catch (error) {
+      log("Erro ao listar arquivos:", error);
+      if (error instanceof McpError) {
+        throw error;
+      }
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Erro ao listar os arquivos de documentação: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
+
+  /**
+   * Handle the get_filament_doc tool request
+   */
+  private async handleGetDoc(args: any) {
+    try {
+      if (!args.package || typeof args.package !== "string") {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          "O parâmetro 'package' é obrigatório e deve ser uma string"
+        );
+      }
+
+      if (!args.path || typeof args.path !== "string") {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          "O parâmetro 'path' é obrigatório e deve ser uma string"
+        );
+      }
+
+      const packageName = args.package.trim();
+      let docPath = args.path.trim();
+
+      // Construir o caminho completo para o arquivo
+      let filePath = path.join(
+        DOCS_BASE_PATH,
+        "packages",
+        packageName,
+        "docs",
+        docPath
+      );
+
+      // Verificar extensão .md
+      if (!filePath.endsWith(".md")) {
+        filePath += ".md";
+      }
+
+      // Verificar se o arquivo existe
+      try {
+        const stats = await statAsync(filePath);
+        if (!stats.isFile()) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `O caminho '${packageName}/${docPath}' não é um arquivo válido`
+          );
+        }
+      } catch (e) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `O arquivo solicitado não existe: ${packageName}/${docPath}`
+        );
+      }
+
+      // Verificar cache
+      const cacheKey = `${packageName}/${docPath}`;
+      if (this.docContentCache.has(cacheKey)) {
+        const cachedContent = this.docContentCache.get(cacheKey)!;
+        const title = this.extractTitleFromMarkdown(cachedContent);
+
+        return this.createSuccessResponse({
+          title,
+          content: cachedContent,
+          package: packageName,
+          path: docPath,
+        });
+      }
+
+      // Ler o conteúdo do arquivo
+      const content = await readFileAsync(filePath, "utf-8");
+
+      // Extrair título
+      const title = this.extractTitleFromMarkdown(content);
+
+      // Salvar em cache
+      this.docContentCache.set(cacheKey, content);
+
+      return this.createSuccessResponse({
+        title,
+        content,
+        package: packageName,
+        path: docPath,
+      });
+    } catch (error) {
+      log("Erro ao obter conteúdo do arquivo:", error);
+      if (error instanceof McpError) {
+        throw error;
+      }
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Erro ao obter conteúdo da documentação: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
+
+  /**
+   * Handle the search_filament_docs tool request
+   */
+  private async handleSearchDocs(args: any) {
+    try {
+      if (!args.query || typeof args.query !== "string") {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          "O parâmetro 'query' é obrigatório e deve ser uma string"
+        );
+      }
+
+      const query = args.query.trim().toLowerCase();
+      const targetPackage = args.package ? args.package.trim() : null;
+
+      if (query.length < 3) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          "O termo de busca deve ter pelo menos 3 caracteres"
+        );
+      }
+
+      // Carregar a lista de pacotes se ainda não estiver em cache
+      if (!this.docPackagesCache) {
+        await this.handleListPackages();
+      }
+
+      // Filtrar apenas o pacote alvo, se especificado
+      let packagesToSearch = this.docPackagesCache || [];
+      if (targetPackage) {
+        packagesToSearch = packagesToSearch.filter(
+          (pkg) => pkg.name === targetPackage
+        );
+
+        if (packagesToSearch.length === 0) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `Pacote não encontrado: ${targetPackage}`
+          );
+        }
+      }
+
+      const results: DocSearchResult[] = [];
+
+      // Buscar em todos os arquivos de cada pacote
+      for (const pkg of packagesToSearch) {
+        // Construir o caminho para a pasta docs do pacote
+        const docsDir = path.join(DOCS_BASE_PATH, "packages", pkg.name, "docs");
+
+        // Função recursiva para buscar em um diretório
+        const searchInDirectory = async (
+          dirPath: string,
+          relativePath: string = ""
+        ) => {
+          const entries = await readdirAsync(dirPath);
+
+          for (const entry of entries) {
+            const entryPath = path.join(dirPath, entry);
+            const stats = await statAsync(entryPath);
+
+            if (stats.isDirectory()) {
+              // Recursão para subdiretórios
+              const newRelativePath = relativePath
+                ? `${relativePath}/${entry}`
+                : entry;
+              await searchInDirectory(entryPath, newRelativePath);
+            } else if (stats.isFile() && entry.endsWith(".md")) {
+              // Processar arquivos Markdown
+              let content: string;
+
+              // Verificar cache
+              const cacheKey = `${pkg.name}/${
+                relativePath ? `${relativePath}/` : ""
+              }${entry}`;
+              if (this.docContentCache.has(cacheKey)) {
+                content = this.docContentCache.get(cacheKey)!;
+              } else {
+                content = await readFileAsync(entryPath, "utf-8");
+                this.docContentCache.set(cacheKey, content);
+              }
+
+              // Buscar o termo no conteúdo
+              if (content.toLowerCase().includes(query)) {
+                const title =
+                  this.extractTitleFromMarkdown(content) ||
+                  this.pathToTitle(entry);
+                const excerpt = this.getMarkdownExcerpt(content, query);
+                const relevance = this.calculateRelevance(content, query);
+
+                results.push({
+                  title,
+                  path: `${
+                    relativePath ? `${relativePath}/` : ""
+                  }${entry}`.replace(/\.md$/, ""),
+                  package: pkg.name,
+                  excerpt,
+                  relevance,
+                });
+              }
+            }
+          }
+        };
+
+        await searchInDirectory(docsDir);
+      }
+
+      // Ordenar resultados por relevância
+      results.sort((a, b) => b.relevance - a.relevance);
+
+      return this.createSuccessResponse({
+        query,
+        results,
+        count: results.length,
+        package: targetPackage || "all",
+      });
+    } catch (error) {
+      log("Erro ao buscar na documentação:", error);
+      if (error instanceof McpError) {
+        throw error;
+      }
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Erro ao buscar na documentação`
+      );
+    }
   }
 
   /**
