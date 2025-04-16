@@ -24,27 +24,22 @@ import * as os from "os";
 import { promisify } from "util";
 import { fileURLToPath } from "url";
 
-// Obter o equivalente a __dirname em ES modules
+// Get the equivalent of __dirname in ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Promisificar funções síncronas do fs
+// Promisify synchronous fs functions
 const readFileAsync = promisify(fs.readFile);
 const readdirAsync = promisify(fs.readdir);
 const statAsync = promisify(fs.stat);
 
-// Configuração de log para um arquivo separado em vez de stdout/stderr
+// Log configuration for a separate file instead of stdout/stderr
 const LOG_ENABLED = true;
 const LOG_FILE = path.join(os.tmpdir(), "filament-mcp-server.log");
 
-// Caminho base para os arquivos de documentação local
-const DOCS_BASE_PATH = path.join(
-  path.dirname(path.dirname(__dirname)),
-  "data",
-  "filament-docs"
-);
+const DOCS_BASE_PATH = path.join(__dirname, "..", "data", "filament-docs");
 
-// Função de log que escreve em arquivo separado e não na saída padrão
+// Logging function that writes to a separate file instead of standard output
 function log(...args: any[]) {
   if (LOG_ENABLED) {
     const logMessage = args
@@ -59,7 +54,7 @@ function log(...args: any[]) {
         `${new Date().toISOString()}: ${logMessage}\n`
       );
     } catch (e) {
-      // Silêncio em caso de erro de escrita no log
+      // Silence in case of log writing error
     }
   }
 }
@@ -135,7 +130,7 @@ class FilamentServer {
   private fieldCache: Map<string, FieldInfo> = new Map();
   private readonly FILAMENT_DOCS_URL = "https://filamentphp.com/docs/3.x";
 
-  // Cache para documentação local
+  // Cache for local documentation
   private docPackagesCache: DocPackage[] | null = null;
   private docContentCache: Map<string, string> = new Map();
 
@@ -194,7 +189,7 @@ class FilamentServer {
         {
           name: "list_filament_packages",
           description:
-            "Lista os pacotes disponíveis na documentação local do Filament",
+            "Lists the available packages in the local Filament documentation",
           inputSchema: {
             type: "object",
             properties: {},
@@ -203,19 +198,19 @@ class FilamentServer {
         {
           name: "list_filament_docs",
           description:
-            "Lista os arquivos de documentação disponíveis em um pacote específico",
+            "Lists the available documentation files in a specific package",
           inputSchema: {
             type: "object",
             properties: {
               package: {
                 type: "string",
                 description:
-                  "Nome do pacote (ex: 'forms', 'tables', 'panels', etc.)",
+                  "Name of the package (e.g., 'forms', 'tables', 'panels', etc.)",
               },
               path: {
                 type: "string",
                 description:
-                  "Caminho opcional dentro do pacote (ex: 'fields', 'layout', etc.)",
+                  "Optional path within the package (e.g., 'fields', 'layout', etc.)",
               },
             },
             required: ["package"],
@@ -224,19 +219,19 @@ class FilamentServer {
         {
           name: "get_filament_doc",
           description:
-            "Obtém o conteúdo de um arquivo específico da documentação do Filament",
+            "Gets the content of a specific file from the Filament documentation",
           inputSchema: {
             type: "object",
             properties: {
               package: {
                 type: "string",
                 description:
-                  "Nome do pacote (ex: 'forms', 'tables', 'panels', etc.)",
+                  "Name of the package (e.g., 'forms', 'tables', 'panels', etc.)",
               },
               path: {
                 type: "string",
                 description:
-                  "Caminho do arquivo dentro do pacote (ex: 'fields/text-input', 'installation', etc.)",
+                  "Path of the file within the package (e.g., 'fields/text-input', 'installation', etc.)",
               },
             },
             required: ["package", "path"],
@@ -245,19 +240,19 @@ class FilamentServer {
         {
           name: "search_filament_docs",
           description:
-            "Busca um termo em toda a documentação local do Filament",
+            "Searches for a term in the entire local Filament documentation",
           inputSchema: {
             type: "object",
             properties: {
               query: {
                 type: "string",
                 description:
-                  "Termo de busca (ex: 'input', 'validation', 'table', etc.)",
+                  "Search term (e.g., 'input', 'validation', 'table', etc.)",
               },
               package: {
                 type: "string",
                 description:
-                  "Pacote opcional para limitar a busca (ex: 'forms', 'tables', etc.)",
+                  "Optional package to limit the search (e.g., 'forms', 'tables', etc.)",
               },
             },
             required: ["query"],
@@ -598,43 +593,43 @@ class FilamentServer {
   }
 
   /**
-   * Utilitário para extrair título de um arquivo Markdown
+   * Utility to extract title from a Markdown file
    */
   private extractTitleFromMarkdown(content: string): string {
-    // Procura por título de nível 1 (# Title)
+    // Look for level 1 title (# Title)
     const titleMatch = content.match(/^#\s+(.+)$/m);
     if (titleMatch) {
       return titleMatch[1].trim();
     }
 
-    // Se não encontrar título de nível 1, tenta obter o nome do arquivo sem extensão
-    return "Sem título";
+    // If no level 1 title is found, try to get the file name without extension
+    return "Untitled";
   }
 
   /**
-   * Utilitário para obter um trecho do texto contendo a consulta
+   * Utility to get an excerpt of text containing the query
    */
   private getMarkdownExcerpt(
     content: string,
     query: string,
     length: number = 150
   ): string {
-    // Converter para minúsculas para pesquisa não sensível a maiúsculas/minúsculas
+    // Convert to lowercase for case-insensitive search
     const lowerContent = content.toLowerCase();
     const lowerQuery = query.toLowerCase();
 
-    // Encontrar índice da consulta
+    // Find query index
     const index = lowerContent.indexOf(lowerQuery);
     if (index === -1) {
-      // Se não encontrou a consulta, retorna o início do documento
+      // If query not found, return the beginning of the document
       return content.substring(0, Math.min(length, content.length)) + "...";
     }
 
-    // Calcular início e fim do trecho para mostrar contexto
+    // Calculate start and end positions for context
     const startPos = Math.max(0, index - 50);
     const endPos = Math.min(content.length, index + query.length + 100);
 
-    // Adicionar reticências se o trecho não começar do início ou não terminar no fim
+    // Add ellipses if excerpt doesn't start at the beginning or end at the end
     const prefix = startPos > 0 ? "..." : "";
     const suffix = endPos < content.length ? "..." : "";
 
@@ -642,24 +637,24 @@ class FilamentServer {
   }
 
   /**
-   * Limpa nome de arquivo/pasta removendo prefixo numérico (ex: "01-installation" -> "installation")
+   * Cleans file/folder name by removing numeric prefix (e.g., "01-installation" -> "installation")
    */
   private cleanItemName(name: string): string {
-    // Remove prefixos numéricos como "01-", "02-" etc.
+    // Remove numeric prefixes like "01-", "02-" etc.
     return name.replace(/^\d+-/, "").replace(".md", "");
   }
 
   /**
-   * Converte caminho de arquivo para título legível
+   * Converts file path to readable title
    */
   private pathToTitle(filePath: string): string {
-    // Extrair nome do arquivo sem extensão
+    // Extract file name without extension
     const fileName = path.basename(filePath, ".md");
 
-    // Limpar prefixo numérico
+    // Clean numeric prefix
     const cleanName = this.cleanItemName(fileName);
 
-    // Converter para título com primeira letra maiúscula e traços para espaços
+    // Convert to title with first letter uppercase and dashes to spaces
     return cleanName
       .split("-")
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
@@ -667,23 +662,23 @@ class FilamentServer {
   }
 
   /**
-   * Calcula a relevância de um resultado de pesquisa
+   * Calculates the relevance of a search result
    */
   private calculateRelevance(content: string, query: string): number {
     const lowerContent = content.toLowerCase();
     const lowerQuery = query.toLowerCase();
 
-    // Número de ocorrências
+    // Number of occurrences
     const occurrences = (lowerContent.match(new RegExp(lowerQuery, "g")) || [])
       .length;
 
-    // Verificar se está em um título
+    // Check if it's in a title
     const titleMatch = lowerContent.match(
       new RegExp(`^#+\\s+.*${lowerQuery}.*$`, "m")
     );
     const titleBonus = titleMatch ? 10 : 0;
 
-    // Posição da primeira ocorrência (mais relevante se aparecer no início)
+    // Position of the first occurrence (more relevant if it appears early)
     const position = lowerContent.indexOf(lowerQuery);
     const positionScore =
       position === -1 ? 0 : Math.max(0, 10 - Math.floor(position / 100));
@@ -696,16 +691,16 @@ class FilamentServer {
    */
   private async handleListPackages() {
     try {
-      // Verificar cache primeiro
+      // Check cache first
       if (this.docPackagesCache) {
         return this.createSuccessResponse(this.docPackagesCache);
       }
 
-      // Ler os pacotes do diretório local
+      // Read packages from local directory
       const packagesPath = path.join(DOCS_BASE_PATH, "packages");
       const entries = await readdirAsync(packagesPath);
 
-      // Filtrar apenas diretórios e montar objetos de pacote
+      // Filter only directories and build package objects
       const packages: DocPackage[] = [];
 
       for (const entry of entries) {
@@ -713,7 +708,7 @@ class FilamentServer {
         const stats = await statAsync(entryPath);
 
         if (stats.isDirectory()) {
-          // Verificar se tem arquivo de documentação
+          // Check if it has documentation files
           const docsPath = path.join(entryPath, "docs");
           let hasDocumentation = false;
 
@@ -721,15 +716,15 @@ class FilamentServer {
             const docsStats = await statAsync(docsPath);
             hasDocumentation = docsStats.isDirectory();
           } catch (e) {
-            // Ignorar erro se o diretório docs não existir
+            // Ignore error if docs directory doesn't exist
           }
 
           if (hasDocumentation) {
-            // Tentar extrair descrição de um arquivo README.md ou similar
-            let description = `Documentação do pacote ${entry}`;
+            // Try to extract description from a README.md or similar file
+            let description = `Documentation for package ${entry}`;
 
             try {
-              // Procurar por arquivo de overview ou README
+              // Look for overview or README file
               const overviewPath = path.join(docsPath, "01-overview.md");
               const overviewStats = await statAsync(overviewPath);
 
@@ -741,7 +736,7 @@ class FilamentServer {
                 }
               }
             } catch (e) {
-              // Ignorar erro se não encontrar arquivo de overview
+              // Ignore error if overview file is not found
             }
 
             packages.push({
@@ -753,18 +748,18 @@ class FilamentServer {
         }
       }
 
-      // Ordenar pacotes alfabeticamente
+      // Sort packages alphabetically
       packages.sort((a, b) => a.name.localeCompare(b.name));
 
-      // Salvar em cache
+      // Save to cache
       this.docPackagesCache = packages;
 
       return this.createSuccessResponse(packages);
     } catch (error) {
-      log("Erro ao listar pacotes:", error);
+      log("Error listing packages:", error);
       throw new McpError(
         ErrorCode.InternalError,
-        `Erro ao listar os pacotes de documentação: ${
+        `Error listing documentation packages: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
@@ -779,41 +774,41 @@ class FilamentServer {
       if (!args.package || typeof args.package !== "string") {
         throw new McpError(
           ErrorCode.InvalidParams,
-          "O parâmetro 'package' é obrigatório e deve ser uma string"
+          "The 'package' parameter is required and must be a string"
         );
       }
 
       const packageName = args.package.trim();
       const subPath = args.path ? args.path.trim() : "";
 
-      // Construir o caminho completo para o diretório
+      // Build the full path to the directory
       let dirPath = path.join(DOCS_BASE_PATH, "packages", packageName, "docs");
 
       if (subPath) {
         dirPath = path.join(dirPath, subPath);
       }
 
-      // Verificar se o diretório existe
+      // Check if the directory exists
       try {
         const stats = await statAsync(dirPath);
         if (!stats.isDirectory()) {
           throw new McpError(
             ErrorCode.InvalidParams,
-            `O caminho '${packageName}${
+            `The path '${packageName}${
               subPath ? "/" + subPath : ""
-            }' não é um diretório válido`
+            }' is not a valid directory`
           );
         }
       } catch (e) {
         throw new McpError(
           ErrorCode.InvalidParams,
-          `O pacote ou caminho especificado não existe: ${packageName}${
+          `The specified package or path does not exist: ${packageName}${
             subPath ? "/" + subPath : ""
           }`
         );
       }
 
-      // Ler os arquivos e diretórios
+      // Read files and directories
       const entries = await readdirAsync(dirPath);
       const files: DocFile[] = [];
 
@@ -822,36 +817,36 @@ class FilamentServer {
         const stats = await statAsync(entryPath);
         const isDir = stats.isDirectory();
 
-        // Ignorar arquivos ocultos
+        // Ignore hidden files
         if (entry.startsWith(".")) {
           continue;
         }
 
-        // Montar objeto de arquivo
+        // Build file object
         const docFile: DocFile = {
           name: this.cleanItemName(entry),
           path: subPath ? `${subPath}/${entry}` : entry,
           isDirectory: isDir,
         };
 
-        // Para arquivos .md, tenta extrair título
+        // For .md files, try to extract title
         if (!isDir && entry.endsWith(".md")) {
           try {
             const content = await readFileAsync(entryPath, "utf-8");
             docFile.title = this.extractTitleFromMarkdown(content);
           } catch (e) {
-            // Se não conseguir ler, usa o nome do arquivo como título
+            // If unable to read, use file name as title
             docFile.title = this.pathToTitle(entry);
           }
         } else if (isDir) {
-          // Para diretórios, usa o nome limpo como título
+          // For directories, use clean name as title
           docFile.title = this.pathToTitle(entry);
         }
 
         files.push(docFile);
       }
 
-      // Ordenar: primeiro diretórios, depois arquivos
+      // Sort: directories first, then files
       files.sort((a, b) => {
         if (a.isDirectory && !b.isDirectory) return -1;
         if (!a.isDirectory && b.isDirectory) return 1;
@@ -864,13 +859,13 @@ class FilamentServer {
         files: files,
       });
     } catch (error) {
-      log("Erro ao listar arquivos:", error);
+      log("Error listing files:", error);
       if (error instanceof McpError) {
         throw error;
       }
       throw new McpError(
         ErrorCode.InternalError,
-        `Erro ao listar os arquivos de documentação: ${
+        `Error listing documentation files: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
@@ -885,21 +880,21 @@ class FilamentServer {
       if (!args.package || typeof args.package !== "string") {
         throw new McpError(
           ErrorCode.InvalidParams,
-          "O parâmetro 'package' é obrigatório e deve ser uma string"
+          "The 'package' parameter is required and must be a string"
         );
       }
 
       if (!args.path || typeof args.path !== "string") {
         throw new McpError(
           ErrorCode.InvalidParams,
-          "O parâmetro 'path' é obrigatório e deve ser uma string"
+          "The 'path' parameter is required and must be a string"
         );
       }
 
       const packageName = args.package.trim();
       let docPath = args.path.trim();
 
-      // Construir o caminho completo para o arquivo
+      // Build the full path to the file
       let filePath = path.join(
         DOCS_BASE_PATH,
         "packages",
@@ -908,28 +903,28 @@ class FilamentServer {
         docPath
       );
 
-      // Verificar extensão .md
+      // Check for .md extension
       if (!filePath.endsWith(".md")) {
         filePath += ".md";
       }
 
-      // Verificar se o arquivo existe
+      // Check if the file exists
       try {
         const stats = await statAsync(filePath);
         if (!stats.isFile()) {
           throw new McpError(
             ErrorCode.InvalidParams,
-            `O caminho '${packageName}/${docPath}' não é um arquivo válido`
+            `The path '${packageName}/${docPath}' is not a valid file`
           );
         }
       } catch (e) {
         throw new McpError(
           ErrorCode.InvalidParams,
-          `O arquivo solicitado não existe: ${packageName}/${docPath}`
+          `The requested file does not exist: ${packageName}/${docPath}`
         );
       }
 
-      // Verificar cache
+      // Check cache
       const cacheKey = `${packageName}/${docPath}`;
       if (this.docContentCache.has(cacheKey)) {
         const cachedContent = this.docContentCache.get(cacheKey)!;
@@ -943,13 +938,13 @@ class FilamentServer {
         });
       }
 
-      // Ler o conteúdo do arquivo
+      // Read file content
       const content = await readFileAsync(filePath, "utf-8");
 
-      // Extrair título
+      // Extract title
       const title = this.extractTitleFromMarkdown(content);
 
-      // Salvar em cache
+      // Save to cache
       this.docContentCache.set(cacheKey, content);
 
       return this.createSuccessResponse({
@@ -959,13 +954,13 @@ class FilamentServer {
         path: docPath,
       });
     } catch (error) {
-      log("Erro ao obter conteúdo do arquivo:", error);
+      log("Error getting file content:", error);
       if (error instanceof McpError) {
         throw error;
       }
       throw new McpError(
         ErrorCode.InternalError,
-        `Erro ao obter conteúdo da documentação: ${
+        `Error getting documentation content: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
@@ -980,7 +975,7 @@ class FilamentServer {
       if (!args.query || typeof args.query !== "string") {
         throw new McpError(
           ErrorCode.InvalidParams,
-          "O parâmetro 'query' é obrigatório e deve ser uma string"
+          "The 'query' parameter is required and must be a string"
         );
       }
 
@@ -990,16 +985,16 @@ class FilamentServer {
       if (query.length < 3) {
         throw new McpError(
           ErrorCode.InvalidParams,
-          "O termo de busca deve ter pelo menos 3 caracteres"
+          "The search term must be at least 3 characters long"
         );
       }
 
-      // Carregar a lista de pacotes se ainda não estiver em cache
+      // Load the list of packages if not already cached
       if (!this.docPackagesCache) {
         await this.handleListPackages();
       }
 
-      // Filtrar apenas o pacote alvo, se especificado
+      // Filter only the target package, if specified
       let packagesToSearch = this.docPackagesCache || [];
       if (targetPackage) {
         packagesToSearch = packagesToSearch.filter(
@@ -1009,19 +1004,19 @@ class FilamentServer {
         if (packagesToSearch.length === 0) {
           throw new McpError(
             ErrorCode.InvalidParams,
-            `Pacote não encontrado: ${targetPackage}`
+            `Package not found: ${targetPackage}`
           );
         }
       }
 
       const results: DocSearchResult[] = [];
 
-      // Buscar em todos os arquivos de cada pacote
+      // Search in all files of each package
       for (const pkg of packagesToSearch) {
-        // Construir o caminho para a pasta docs do pacote
+        // Build the path to the package's docs folder
         const docsDir = path.join(DOCS_BASE_PATH, "packages", pkg.name, "docs");
 
-        // Função recursiva para buscar em um diretório
+        // Recursive function to search in a directory
         const searchInDirectory = async (
           dirPath: string,
           relativePath: string = ""
@@ -1033,16 +1028,16 @@ class FilamentServer {
             const stats = await statAsync(entryPath);
 
             if (stats.isDirectory()) {
-              // Recursão para subdiretórios
+              // Recursion for subdirectories
               const newRelativePath = relativePath
                 ? `${relativePath}/${entry}`
                 : entry;
               await searchInDirectory(entryPath, newRelativePath);
             } else if (stats.isFile() && entry.endsWith(".md")) {
-              // Processar arquivos Markdown
+              // Process Markdown files
               let content: string;
 
-              // Verificar cache
+              // Check cache
               const cacheKey = `${pkg.name}/${
                 relativePath ? `${relativePath}/` : ""
               }${entry}`;
@@ -1053,7 +1048,7 @@ class FilamentServer {
                 this.docContentCache.set(cacheKey, content);
               }
 
-              // Buscar o termo no conteúdo
+              // Search term in content
               if (content.toLowerCase().includes(query)) {
                 const title =
                   this.extractTitleFromMarkdown(content) ||
@@ -1078,7 +1073,7 @@ class FilamentServer {
         await searchInDirectory(docsDir);
       }
 
-      // Ordenar resultados por relevância
+      // Sort results by relevance
       results.sort((a, b) => b.relevance - a.relevance);
 
       return this.createSuccessResponse({
@@ -1088,13 +1083,13 @@ class FilamentServer {
         package: targetPackage || "all",
       });
     } catch (error) {
-      log("Erro ao buscar na documentação:", error);
+      log("Error searching documentation:", error);
       if (error instanceof McpError) {
         throw error;
       }
       throw new McpError(
         ErrorCode.InternalError,
-        `Erro ao buscar na documentação`
+        `Error searching documentation`
       );
     }
   }
@@ -1113,15 +1108,15 @@ class FilamentServer {
   }
 }
 
-// Limpar o arquivo de log se ele ficar muito grande
+// Clear the log file if it gets too large
 try {
   const stats = fs.statSync(LOG_FILE);
   if (stats.size > 5 * 1024 * 1024) {
     // 5MB
-    fs.writeFileSync(LOG_FILE, ""); // Limpar o arquivo
+    fs.writeFileSync(LOG_FILE, ""); // Clear the file
   }
 } catch (e) {
-  // Arquivo pode não existir ainda, ignorar
+  // File may not exist yet, ignore
 }
 
 // Create and run the server
