@@ -12,7 +12,6 @@ This is a TypeScript-based MCP server that provides reference information for Fi
 - `list_filament_docs` - Lists the documentation files available in a specific package
 - `get_filament_doc` - Gets the content of a specific file from the Filament documentation
 - `search_filament_docs` - Searches for a term across the local Filament documentation
-- `get_filament_form_field` - Gets detailed information about a specific Filament form field
 
 ### Functionality
 
