@@ -16,6 +16,33 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import axios from "axios";
 import * as cheerio from "cheerio";
+import * as fs from "fs";
+import * as path from "path";
+import * as os from "os";
+
+// Configuração de log para um arquivo separado em vez de stdout/stderr
+const LOG_ENABLED = true;
+const LOG_FILE = path.join(os.tmpdir(), "filament-mcp-server.log");
+
+// Função de log que escreve em arquivo separado e não na saída padrão
+function log(...args: any[]) {
+  if (LOG_ENABLED) {
+    const logMessage = args
+      .map((arg) =>
+        typeof arg === "object" ? JSON.stringify(arg) : String(arg)
+      )
+      .join(" ");
+
+    try {
+      fs.appendFileSync(
+        LOG_FILE,
+        `${new Date().toISOString()}: ${logMessage}\n`
+      );
+    } catch (e) {
+      // Silêncio em caso de erro de escrita no log
+    }
+  }
+}
 
 /**
  * Interface for form field information
@@ -80,7 +107,8 @@ class FilamentServer {
 
     this.setupToolHandlers();
 
-    this.server.onerror = (error) => console.error("[MCP Error]", error);
+    this.server.onerror = (error) => log("[MCP Error]", error);
+
     process.on("SIGINT", async () => {
       await this.server.close();
       process.exit(0);
@@ -143,7 +171,7 @@ class FilamentServer {
    */
   private handleAxiosError(error: unknown, context: string): never {
     if (axios.isAxiosError(error)) {
-      console.error(
+      log(
         `Axios error during "${context}": ${error.message}`,
         error.response?.status,
         error.config?.url
@@ -162,7 +190,7 @@ class FilamentServer {
         );
       }
     }
-    console.error(`Non-Axios error during "${context}":`, error);
+    log(`Non-Axios error during "${context}":`, error);
     throw error instanceof McpError
       ? error
       : new McpError(
@@ -195,21 +223,18 @@ class FilamentServer {
       // Check cache first
       if (this.fieldCache.has(fieldName)) {
         const cachedData = this.fieldCache.get(fieldName);
-        console.error(`Cache hit for ${fieldName}`);
         return this.createSuccessResponse(cachedData);
       }
-      console.error(`Cache miss for ${fieldName}, fetching...`);
 
       // Fetch field details
       const fieldInfo = await this.fetchFieldDetails(fieldName);
 
       // Save to cache
       this.fieldCache.set(fieldName, fieldInfo);
-      console.error(`Cached details for ${fieldName}`);
 
       return this.createSuccessResponse(fieldInfo);
     } catch (error) {
-      console.error(`Error fetching details for ${fieldName}:`, error);
+      log(`Error fetching details for ${fieldName}:`, error);
       if (error instanceof McpError) {
         throw error;
       }
@@ -222,10 +247,8 @@ class FilamentServer {
    */
   private async fetchFieldDetails(fieldName: string): Promise<FieldInfo> {
     const fieldUrl = `${this.FILAMENT_DOCS_URL}/forms/fields/${fieldName}`;
-    console.error(`Fetching URL: ${fieldUrl}`);
     const response = await this.axiosInstance.get(fieldUrl);
     const $ = cheerio.load(response.data);
-    console.error(`Successfully loaded HTML for ${fieldName}`);
 
     // Extract field information
     const title = $("h1").first().text().trim() || fieldName;
@@ -233,13 +256,6 @@ class FilamentServer {
     const usage = this.extractUsage($);
     const examples = this.extractExamples($);
     const props = this.extractProps($);
-
-    console.error(
-      `Extracted for ${fieldName}: Title=${title}, Desc=${description.substring(
-        0,
-        50
-      )}..., Props=${props.length}, Examples=${examples.length}`
-    );
 
     return {
       name: title,
@@ -349,7 +365,6 @@ class FilamentServer {
     });
 
     if (!apiSectionHeadings.length) {
-      console.error("API/Methods section not found");
       return props;
     }
 
@@ -452,15 +467,30 @@ class FilamentServer {
    * Run the server
    */
   async run() {
-    const transport = new StdioServerTransport();
-    await this.server.connect(transport);
-    console.error("Filament MCP server running on stdio");
+    try {
+      const transport = new StdioServerTransport();
+      await this.server.connect(transport);
+    } catch (error) {
+      log("Error setting up server:", error);
+      throw error;
+    }
   }
+}
+
+// Limpar o arquivo de log se ele ficar muito grande
+try {
+  const stats = fs.statSync(LOG_FILE);
+  if (stats.size > 5 * 1024 * 1024) {
+    // 5MB
+    fs.writeFileSync(LOG_FILE, ""); // Limpar o arquivo
+  }
+} catch (e) {
+  // Arquivo pode não existir ainda, ignorar
 }
 
 // Create and run the server
 const server = new FilamentServer();
 server.run().catch((error) => {
-  console.error("Server failed to run:", error);
+  log("Server failed to run:", error);
   process.exit(1);
 });

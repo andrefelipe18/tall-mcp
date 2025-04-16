@@ -16,9 +16,11 @@ This is a TypeScript-based MCP server that provides reference information for Fl
 ### Functionality
 
 This server scrapes and caches information from:
+
 - The official Flux UI documentation site (https://fluxui.dev)
 
 It provides structured data including:
+
 - Component descriptions
 - Usage examples
 - Props
@@ -27,16 +29,19 @@ It provides structured data including:
 ## Development
 
 Install dependencies:
+
 ```bash
 npm install
 ```
 
 Build the server:
+
 ```bash
 npm run build
 ```
 
 For development with auto-rebuild:
+
 ```bash
 npm run watch
 ```
@@ -113,4 +118,143 @@ Since MCP servers communicate over stdio, debugging can be challenging. We recom
 npm run inspector
 ```
 
-The Inspector will provide a URL to access debugging tools in your browser. 
+The Inspector will provide a URL to access debugging tools in your browser.
+
+---
+
+# Filament MCP Server
+
+MCP server for Filament form field references
+
+This is a TypeScript-based MCP server that provides reference information for Filament form fields. It implements a Model Context Protocol (MCP) server that helps AI assistants access Filament form field documentation and examples.
+
+## Features
+
+### Tools
+
+- `get_filament_form_field` - Get detailed information about a specific Filament form field
+
+### Functionality
+
+This server scrapes and caches information from:
+
+- The official Filament documentation site (https://filamentphp.com/docs/3.x)
+
+It provides structured data including:
+
+- Field descriptions
+- Usage examples
+- Properties and methods
+- Code samples
+
+## Development
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Build the server:
+
+```bash
+npm run build
+```
+
+For development with auto-rebuild:
+
+```bash
+npm run watch
+```
+
+## Installation
+
+### Global Installation
+
+You can install this package globally:
+
+```bash
+npm install -g filament-mcp-server
+```
+
+### Claude Desktop Configuration
+
+To use with Claude Desktop, add the server config:
+
+On Windows: `%APPDATA%\Claude\claude_desktop_config.json`
+On MacOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
+
+#### Option 1: Using global install
+
+```json
+{
+  "mcpServers": {
+    "filament-server": {
+      "command": "filament-server"
+    }
+  }
+}
+```
+
+#### Option 2: Using npx command
+
+```json
+{
+  "mcpServers": {
+    "filament-server": {
+      "command": "npx",
+      "args": ["-y", "filament-mcp-server"]
+    }
+  }
+}
+```
+
+### Windsurf Configuration
+
+Add this to your `./codeium/windsurf/model_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "filament-server": {
+      "command": "npx",
+      "args": ["-y", "filament-mcp-server"]
+    }
+  }
+}
+```
+
+### Cursor Configuration
+
+Add this to your `.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "filament-server": {
+      "command": "npx",
+      "args": ["-y", "filament-mcp-server"]
+    }
+  }
+}
+```
+
+### Debugging
+
+Since MCP servers communicate over stdio, debugging can be challenging. We recommend using the [MCP Inspector](https://github.com/modelcontextprotocol/inspector), which is available as a package script:
+
+```bash
+npm run inspector
+```
+
+The Inspector will provide a URL to access debugging tools in your browser.
+
+## Usage Examples
+
+Once the server is configured, you can ask Claude to retrieve information about Filament form fields, for example:
+
+```
+Can you show me the properties and usage examples for Filament's text-input field?
+```
+
+Claude will use the MCP server to fetch information directly from the Filament documentation.
