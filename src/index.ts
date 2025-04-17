@@ -41,6 +41,9 @@ const LARAVEL_DOCS_PATH = path.join(__dirname, "..", "data", "laravel-docs");
 const LIVEWIRE_DOCS_PATH = path.join(__dirname, "..", "data", "livewire-docs");
 const PEST_DOCS_PATH = path.join(__dirname, "..", "data", "pest-docs");
 
+// Define document types
+type DocType = "filament" | "laravel" | "livewire" | "pest";
+
 // Logging function that writes to a separate file instead of standard output
 function log(...args: any[]) {
   if (LOG_ENABLED) {
@@ -78,7 +81,7 @@ interface DocPackage {
   name: string;
   path: string;
   description?: string;
-  docType?: "filament" | "laravel" | "livewire" | "pest" ; // Tipo de documentação
+  docType?: DocType;
 }
 
 /**
@@ -298,7 +301,6 @@ class TallServer {
             required: ["query"],
           },
         },
-
         // Pest docs tools
         {
           name: "list_pest_docs",
@@ -346,7 +348,6 @@ class TallServer {
             required: ["query"],
           },
         },
-
       ],
     }));
 
@@ -364,27 +365,63 @@ class TallServer {
 
         // Laravel docs handlers
         case "list_laravel_docs":
-          return await this.handleListLaravelDocs(request.params.arguments);
+          return await this.handleGenericListDocs(
+            "laravel",
+            request.params.arguments,
+            LARAVEL_DOCS_PATH
+          );
         case "get_laravel_doc":
-          return await this.handleGetLaravelDoc(request.params.arguments);
+          return await this.handleGenericGetDoc(
+            "laravel",
+            request.params.arguments,
+            LARAVEL_DOCS_PATH
+          );
         case "search_laravel_docs":
-          return await this.handleSearchLaravelDocs(request.params.arguments);
+          return await this.handleGenericSearchDocs(
+            "laravel",
+            request.params.arguments,
+            LARAVEL_DOCS_PATH
+          );
 
         // Livewire docs handlers
         case "list_livewire_docs":
-          return await this.handleListDocs("livewire", request.params.arguments, LIVEWIRE_DOCS_PATH);
+          return await this.handleGenericListDocs(
+            "livewire",
+            request.params.arguments,
+            LIVEWIRE_DOCS_PATH
+          );
         case "get_livewire_doc":
-          return await this.handleGetDoc("livewire", request.params.arguments, LIVEWIRE_DOCS_PATH);
+          return await this.handleGenericGetDoc(
+            "livewire",
+            request.params.arguments,
+            LIVEWIRE_DOCS_PATH
+          );
         case "search_livewire_docs":
-          return await this.handleSearchDocs("livewire", request.params.arguments, LIVEWIRE_DOCS_PATH);
+          return await this.handleGenericSearchDocs(
+            "livewire",
+            request.params.arguments,
+            LIVEWIRE_DOCS_PATH
+          );
 
         // Pest docs handlers
         case "list_pest_docs":
-          return await this.handleListDocs("pest", request.params.arguments, PEST_DOCS_PATH);
+          return await this.handleGenericListDocs(
+            "pest",
+            request.params.arguments,
+            PEST_DOCS_PATH
+          );
         case "get_pest_doc":
-          return await this.handleGetDoc("pest", request.params.arguments, PEST_DOCS_PATH);
+          return await this.handleGenericGetDoc(
+            "pest",
+            request.params.arguments,
+            PEST_DOCS_PATH
+          );
         case "search_pest_docs":
-          return await this.handleSearchDocs("pest", request.params.arguments, PEST_DOCS_PATH);
+          return await this.handleGenericSearchDocs(
+            "pest",
+            request.params.arguments,
+            PEST_DOCS_PATH
+          );
 
         default:
           throw new McpError(
@@ -506,7 +543,7 @@ class TallServer {
   /**
    * Handle the list_filament_packages tool request
    */
-  private async handleListPackages() {
+  private async handleListFilamentPackages() {
     try {
       // Check cache first
       if (this.docPackagesCache) {
@@ -560,6 +597,7 @@ class TallServer {
               name: entry,
               path: `packages/${entry}`,
               description,
+              docType: "filament",
             });
           }
         }
@@ -586,7 +624,7 @@ class TallServer {
   /**
    * Handle the list_filament_docs tool request
    */
-  private async handleListDocsFilament(args: any) {
+  private async handleListFilamentDocs(args: any) {
     try {
       if (!args.package || typeof args.package !== "string") {
         throw new McpError(
@@ -697,7 +735,7 @@ class TallServer {
   /**
    * Handle the get_filament_doc tool request
    */
-  private async handleGetDocFilament(args: any) {
+  private async handleGetFilamentDoc(args: any) {
     try {
       if (!args.package || typeof args.package !== "string") {
         throw new McpError(
@@ -792,7 +830,7 @@ class TallServer {
   /**
    * Handle the search_filament_docs tool request
    */
-  private async handleSearchInFilamentDocs(args: any) {
+  private async handleSearchFilamentDocs(args: any) {
     try {
       if (!args.query || typeof args.query !== "string") {
         throw new McpError(
@@ -813,14 +851,14 @@ class TallServer {
 
       // Load the list of packages if not already cached
       if (!this.docPackagesCache) {
-        await this.handleListPackages();
+        await this.handleListFilamentPackages();
       }
 
       // Filter only the target package, if specified
       let packagesToSearch = this.docPackagesCache || [];
       if (targetPackage) {
         packagesToSearch = packagesToSearch.filter(
-          (pkg) => pkg.name === targetPackage
+          (pkg) => pkg.name === targetPackage && pkg.docType === "filament"
         );
 
         if (packagesToSearch.length === 0) {
@@ -829,6 +867,11 @@ class TallServer {
             `Package not found: ${targetPackage}`
           );
         }
+      } else {
+        // Filter only Filament packages
+        packagesToSearch = packagesToSearch.filter(
+          (pkg) => pkg.docType === "filament"
+        );
       }
 
       const results: DocSearchResult[] = [];
@@ -922,315 +965,21 @@ class TallServer {
   }
 
   /**
-   * Handle the list_filament_packages tool request
+   * Generic handler for listing documentation files for all doc types except Filament
    */
-  private async handleListFilamentPackages() {
-    return this.handleListPackages(); // Chama o método legado para manter compatibilidade
-  }
-
-  /**
-   * Handle the list_filament_docs tool request
-   */
-  private async handleListFilamentDocs(args: any) {
-    return this.handleListDocsFilament(args); // Chama o método legado para manter compatibilidade
-  }
-
-  /**
-   * Handle the get_filament_doc tool request
-   */
-  private async handleGetFilamentDoc(args: any) {
-    return this.handleListFilamentDocs(args); // Chama o método legado para manter compatibilidade
-  }
-
-  /**
-   * Handle the search_filament_docs tool request
-   */
-  private async handleSearchFilamentDocs(args: any) {
-    return this.handleSearchInFilamentDocs(args); // Chama o método legado para manter compatibilidade
-  }
-
-  /**
-   * Handle the list_laravel_docs tool request
-   */
-  private async handleListLaravelDocs(args: any) {
-    try {
-      const subPath = args && args.path ? args.path.trim() : "";
-
-      // Build the full path to the directory
-      let dirPath = LARAVEL_DOCS_PATH;
-
-      if (subPath) {
-        dirPath = path.join(dirPath, subPath);
-      }
-
-      // Check if the directory exists
-      try {
-        const stats = await statAsync(dirPath);
-        if (!stats.isDirectory()) {
-          throw new McpError(
-            ErrorCode.InvalidParams,
-            `O caminho '${subPath || "/"}' não é um diretório válido`
-          );
-        }
-      } catch (e) {
-        throw new McpError(
-          ErrorCode.InvalidParams,
-          `O caminho especificado não existe: ${subPath || "/"}`
-        );
-      }
-
-      // Read files and directories
-      const entries = await readdirAsync(dirPath);
-      const files: DocFile[] = [];
-
-      for (const entry of entries) {
-        const entryPath = path.join(dirPath, entry);
-        const stats = await statAsync(entryPath);
-        const isDir = stats.isDirectory();
-
-        // Ignore hidden files
-        if (entry.startsWith(".")) {
-          continue;
-        }
-
-        // Build file object
-        const docFile: DocFile = {
-          name: this.cleanItemName(entry),
-          path: subPath ? `${subPath}/${entry}` : entry,
-          isDirectory: isDir,
-        };
-
-        // For .md files, try to extract title
-        if (!isDir && entry.endsWith(".md")) {
-          try {
-            const content = await readFileAsync(entryPath, "utf-8");
-            docFile.title = this.extractTitleFromMarkdown(content);
-          } catch (e) {
-            // If unable to read, use file name as title
-            docFile.title = this.pathToTitle(entry);
-          }
-        } else if (isDir) {
-          // For directories, use clean name as title
-          docFile.title = this.pathToTitle(entry);
-        }
-
-        files.push(docFile);
-      }
-
-      // Sort: directories first, then files
-      files.sort((a, b) => {
-        if (a.isDirectory && !b.isDirectory) return -1;
-        if (!a.isDirectory && b.isDirectory) return 1;
-        return a.path.localeCompare(b.path);
-      });
-
-      return this.createSuccessResponse({
-        path: subPath,
-        files: files,
-      });
-    } catch (error) {
-      log("Erro ao listar arquivos do Laravel:", error);
-      if (error instanceof McpError) {
-        throw error;
-      }
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Erro ao listar arquivos de documentação do Laravel: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
-    }
-  }
-
-  /**
-   * Handle the get_laravel_doc tool request
-   */
-  private async handleGetLaravelDoc(args: any) {
-    try {
-      if (!args.path || typeof args.path !== "string") {
-        throw new McpError(
-          ErrorCode.InvalidParams,
-          "O parâmetro 'path' é obrigatório e deve ser uma string"
-        );
-      }
-
-      let docPath = args.path.trim();
-
-      // Build the full path to the file
-      let filePath = path.join(LARAVEL_DOCS_PATH, docPath);
-
-      // Check for .md extension
-      if (!filePath.endsWith(".md")) {
-        filePath += ".md";
-      }
-
-      // Check if the file exists
-      try {
-        const stats = await statAsync(filePath);
-        if (!stats.isFile()) {
-          throw new McpError(
-            ErrorCode.InvalidParams,
-            `O caminho '${docPath}' não é um arquivo válido`
-          );
-        }
-      } catch (e) {
-        throw new McpError(
-          ErrorCode.InvalidParams,
-          `O arquivo solicitado não existe: ${docPath}`
-        );
-      }
-
-      // Check cache
-      const cacheKey = `laravel/${docPath}`;
-      if (this.docContentCache.has(cacheKey)) {
-        const cachedContent = this.docContentCache.get(cacheKey)!;
-        const title = this.extractTitleFromMarkdown(cachedContent);
-
-        return this.createSuccessResponse({
-          title,
-          content: cachedContent,
-          path: docPath,
-        });
-      }
-
-      // Read file content
-      const content = await readFileAsync(filePath, "utf-8");
-
-      // Extract title
-      const title = this.extractTitleFromMarkdown(content);
-
-      // Save to cache
-      this.docContentCache.set(cacheKey, content);
-
-      return this.createSuccessResponse({
-        title,
-        content,
-        path: docPath,
-      });
-    } catch (error) {
-      log("Erro ao obter conteúdo do arquivo Laravel:", error);
-      if (error instanceof McpError) {
-        throw error;
-      }
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Erro ao obter conteúdo da documentação do Laravel: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
-    }
-  }
-
-  /**
-   * Handle the search_laravel_docs tool request
-   */
-  private async handleSearchLaravelDocs(args: any) {
-    try {
-      if (!args.query || typeof args.query !== "string") {
-        throw new McpError(
-          ErrorCode.InvalidParams,
-          "O parâmetro 'query' é obrigatório e deve ser uma string"
-        );
-      }
-
-      const query = args.query.trim().toLowerCase();
-
-      if (query.length < 3) {
-        throw new McpError(
-          ErrorCode.InvalidParams,
-          "O termo de busca deve ter pelo menos 3 caracteres"
-        );
-      }
-
-      const results: DocSearchResult[] = [];
-
-      // Recursive function to search in a directory
-      const searchInDirectory = async (
-        dirPath: string,
-        relativePath: string = ""
-      ) => {
-        const entries = await readdirAsync(dirPath);
-
-        for (const entry of entries) {
-          const entryPath = path.join(dirPath, entry);
-          const stats = await statAsync(entryPath);
-
-          if (stats.isDirectory()) {
-            // Recursion for subdirectories
-            const newRelativePath = relativePath
-              ? `${relativePath}/${entry}`
-              : entry;
-            await searchInDirectory(entryPath, newRelativePath);
-          } else if (stats.isFile() && entry.endsWith(".md")) {
-            // Process Markdown files
-            let content: string;
-
-            // Check cache
-            const cacheKey = `laravel/${
-              relativePath ? `${relativePath}/` : ""
-            }${entry}`;
-            if (this.docContentCache.has(cacheKey)) {
-              content = this.docContentCache.get(cacheKey)!;
-            } else {
-              content = await readFileAsync(entryPath, "utf-8");
-              this.docContentCache.set(cacheKey, content);
-            }
-
-            // Search term in content
-            if (content.toLowerCase().includes(query)) {
-              const title =
-                this.extractTitleFromMarkdown(content) ||
-                this.pathToTitle(entry);
-              const excerpt = this.getMarkdownExcerpt(content, query);
-              const relevance = this.calculateRelevance(content, query);
-
-              results.push({
-                title,
-                path: `${
-                  relativePath ? `${relativePath}/` : ""
-                }${entry}`.replace(/\.md$/, ""),
-                package: "laravel",
-                excerpt,
-                relevance,
-              });
-            }
-          }
-        }
-      };
-
-      await searchInDirectory(LARAVEL_DOCS_PATH);
-
-      // Sort results by relevance
-      results.sort((a, b) => b.relevance - a.relevance);
-
-      return this.createSuccessResponse({
-        query,
-        results,
-        count: results.length,
-      });
-    } catch (error) {
-      log("Erro ao pesquisar na documentação do Laravel:", error);
-      if (error instanceof McpError) {
-        throw error;
-      }
-      throw new McpError(
-        ErrorCode.InternalError,
-        `Erro ao pesquisar na documentação do Laravel: ${
-          error instanceof Error ? error.message : String(error)
-        }`
-      );
-    }
-  }
-
-  private async handleListDocs(toolName: string, args: any, basePath: string) {
+  private async handleGenericListDocs(
+    docType: DocType,
+    args: any,
+    basePath: string
+  ) {
     try {
       const subPath = args?.path?.trim() || "";
       let dirPath = basePath;
-  
+
       if (subPath) {
         dirPath = path.join(basePath, subPath);
       }
-  
+
       try {
         const stats = await statAsync(dirPath);
         if (!stats.isDirectory()) {
@@ -1245,23 +994,23 @@ class TallServer {
           `The specified path does not exist: ${subPath || "/"}`
         );
       }
-  
+
       const entries = await readdirAsync(dirPath);
       const files: DocFile[] = [];
-  
+
       for (const entry of entries) {
         if (entry.startsWith(".")) continue;
-  
+
         const entryPath = path.join(dirPath, entry);
         const stats = await statAsync(entryPath);
         const isDir = stats.isDirectory();
-  
+
         const docFile: DocFile = {
           name: this.cleanItemName(entry),
           path: subPath ? `${subPath}/${entry}` : entry,
           isDirectory: isDir,
         };
-  
+
         if (!isDir && entry.endsWith(".md")) {
           try {
             const content = await readFileAsync(entryPath, "utf-8");
@@ -1272,34 +1021,41 @@ class TallServer {
         } else if (isDir) {
           docFile.title = this.pathToTitle(entry);
         }
-  
+
         files.push(docFile);
       }
-  
+
       files.sort((a, b) => {
         if (a.isDirectory && !b.isDirectory) return -1;
         if (!a.isDirectory && b.isDirectory) return 1;
         return a.path.localeCompare(b.path);
       });
-  
+
       return this.createSuccessResponse({
         path: subPath,
         files,
       });
     } catch (error) {
-      log(`Error listing ${toolName} docs:`, error);
+      log(`Error listing ${docType} docs:`, error);
       if (error instanceof McpError) throw error;
-  
+
       throw new McpError(
         ErrorCode.InternalError,
-        `Failed to list documentation files for ${toolName}: ${
+        `Failed to list documentation files for ${docType}: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
     }
   }
-  
-  private async handleGetDoc(toolName: string, args: any, basePath: string) {
+
+  /**
+   * Generic handler for getting documentation content for all doc types except Filament
+   */
+  private async handleGenericGetDoc(
+    docType: DocType,
+    args: any,
+    basePath: string
+  ) {
     try {
       if (!args.path || typeof args.path !== "string") {
         throw new McpError(
@@ -1307,14 +1063,14 @@ class TallServer {
           "The 'path' parameter is required and must be a string"
         );
       }
-  
+
       let docPath = args.path.trim();
       let filePath = path.join(basePath, docPath);
-  
+
       if (!filePath.endsWith(".md")) {
         filePath += ".md";
       }
-  
+
       try {
         const stats = await statAsync(filePath);
         if (!stats.isFile()) {
@@ -1329,43 +1085,50 @@ class TallServer {
           `The requested file does not exist: ${docPath}`
         );
       }
-  
-      const cacheKey = `${toolName}/${docPath}`;
+
+      const cacheKey = `${docType}/${docPath}`;
       if (this.docContentCache.has(cacheKey)) {
         const cachedContent = this.docContentCache.get(cacheKey)!;
         const title = this.extractTitleFromMarkdown(cachedContent);
-  
+
         return this.createSuccessResponse({
           title,
           content: cachedContent,
           path: docPath,
         });
       }
-  
+
       const content = await readFileAsync(filePath, "utf-8");
       const title = this.extractTitleFromMarkdown(content);
-  
+
       this.docContentCache.set(cacheKey, content);
-  
+
       return this.createSuccessResponse({
         title,
         content,
         path: docPath,
       });
     } catch (error) {
-      log(`Error getting ${toolName} doc content:`, error);
+      log(`Error getting ${docType} doc content:`, error);
       if (error instanceof McpError) throw error;
-  
+
       throw new McpError(
         ErrorCode.InternalError,
-        `Failed to get documentation content for ${toolName}: ${
+        `Failed to get documentation content for ${docType}: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
     }
   }
-  
-  private async handleSearchDocs(toolName: string, args: any, basePath: string) {
+
+  /**
+   * Generic handler for searching documentation for all doc types except Filament
+   */
+  private async handleGenericSearchDocs(
+    docType: DocType,
+    args: any,
+    basePath: string
+  ) {
     try {
       if (!args.query || typeof args.query !== "string") {
         throw new McpError(
@@ -1373,30 +1136,30 @@ class TallServer {
           "The 'query' parameter is required and must be a string"
         );
       }
-  
+
       const query = args.query.trim().toLowerCase();
-  
+
       if (query.length < 3) {
         throw new McpError(
           ErrorCode.InvalidParams,
           "The search term must be at least 3 characters long"
         );
       }
-  
+
       const results: DocSearchResult[] = [];
-  
+
       const searchInDirectory = async (
         dirPath: string,
         relativePath: string = ""
       ) => {
         const entries = await readdirAsync(dirPath);
-  
+
         for (const entry of entries) {
           if (entry.startsWith(".")) continue;
-  
+
           const entryPath = path.join(dirPath, entry);
           const stats = await statAsync(entryPath);
-  
+
           if (stats.isDirectory()) {
             const newRelativePath = relativePath
               ? `${relativePath}/${entry}`
@@ -1404,31 +1167,30 @@ class TallServer {
             await searchInDirectory(entryPath, newRelativePath);
           } else if (stats.isFile() && entry.endsWith(".md")) {
             let content: string;
-            const cacheKey = `${toolName}/${
+            const cacheKey = `${docType}/${
               relativePath ? `${relativePath}/` : ""
             }${entry}`;
-  
+
             if (this.docContentCache.has(cacheKey)) {
               content = this.docContentCache.get(cacheKey)!;
             } else {
               content = await readFileAsync(entryPath, "utf-8");
               this.docContentCache.set(cacheKey, content);
             }
-  
+
             if (content.toLowerCase().includes(query)) {
               const title =
                 this.extractTitleFromMarkdown(content) ||
                 this.pathToTitle(entry);
               const excerpt = this.getMarkdownExcerpt(content, query);
               const relevance = this.calculateRelevance(content, query);
-  
+
               results.push({
                 title,
-                path: `${relativePath ? `${relativePath}/` : ""}${entry}`.replace(
-                  /\.md$/,
-                  ""
-                ),
-                package: toolName,
+                path: `${
+                  relativePath ? `${relativePath}/` : ""
+                }${entry}`.replace(/\.md$/, ""),
+                package: docType,
                 excerpt,
                 relevance,
               });
@@ -1436,30 +1198,28 @@ class TallServer {
           }
         }
       };
-  
+
       await searchInDirectory(basePath);
-  
+
       results.sort((a, b) => b.relevance - a.relevance);
-  
+
       return this.createSuccessResponse({
         query,
         results,
         count: results.length,
       });
     } catch (error) {
-      log(`Error searching ${toolName} docs:`, error);
+      log(`Error searching ${docType} docs:`, error);
       if (error instanceof McpError) throw error;
-  
+
       throw new McpError(
         ErrorCode.InternalError,
-        `Failed to search documentation for ${toolName}: ${
+        `Failed to search documentation for ${docType}: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
     }
   }
-  
-          
 
   /**
    * Run the server
