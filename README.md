@@ -27,6 +27,12 @@ This is a TypeScript-based MCP server that provides reference information for Fi
 - `get_livewire_doc` - Gets the content of a specific file from the Livewire documentation
 - `search_livewire_docs` - Searches for a term across the local Livewire documentation
 
+### Pest Documentation
+
+- `list_pest_docs` - Lists all available documentation files in the Pest documentation
+- `get_pest_doc` - Gets the content of a specific file from the Pest documentation
+- `search_pest_docs` - Searches for a term across the local Pest documentation
+
 ### Functionality
 
 This server:
@@ -35,6 +41,7 @@ This server:
   - `/data/filament-docs` - Filament documentation
   - `/data/laravel-docs` - Laravel documentation
   - `/data/livewire-docs` - Livewire documentation
+  - `/data/pest-docs` - Pest documentation
 - Provides structured navigation through the documentation
 - Allows full-text search across all documentation files
 - Can still scrape information from official documentation sites when needed
@@ -52,19 +59,19 @@ It provides structured data including:
 Install dependencies:
 
 ```bash
-bun install
+npm install
 ```
 
 Build the server:
 
 ```bash
-bun run build
+npm run build
 ```
 
 For development with auto-rebuild:
 
 ```bash
-bun run watch
+npm run watch
 ```
 
 ## Installation
@@ -92,7 +99,7 @@ For this, you must have install globally the
 {
   "mcpServers": {
     "tall-server": {
-      "command": "bunx",
+      "command": "npx",
       "args": [
         "tall-server"
       ]
@@ -109,7 +116,7 @@ Add this to your `./codeium/windsurf/model_config.json`:
 {
   "mcpServers": {
     "filament-server": {
-      "command": "bunx",
+      "command": "npx",
       "args": ["tall-server"]
     }
   }
@@ -124,7 +131,7 @@ Add this to your `.cursor/mcp.json`:
 {
   "mcpServers": {
     "filament-server": {
-      "command": "bunx",
+      "command": "npx",
       "args": ["tall-server"]
     }
   }
@@ -136,7 +143,7 @@ Add this to your `.cursor/mcp.json`:
 Since MCP servers communicate over stdio, debugging can be challenging. We recommend using the [MCP Inspector](https://github.com/modelcontextprotocol/inspector), which is available as a package script:
 
 ```bash
-bun run inspector
+npm run inspector
 ```
 
 The Inspector will provide a URL to access debugging tools in your browser.
@@ -155,6 +162,10 @@ Show me examples of Laravel middleware usage.
 
 ```
 How do Livewire components handle state management?
+```
+
+```
+How do I use Pest for testing in Laravel?
 ```
 
 The AI will use the MCP server to fetch information directly from your local documentation.

@@ -39,6 +39,7 @@ const LOG_FILE = path.join(os.tmpdir(), "filament-mcp-server.log");
 const FILAMENT_DOCS_PATH = path.join(__dirname, "..", "data", "filament-docs");
 const LARAVEL_DOCS_PATH = path.join(__dirname, "..", "data", "laravel-docs");
 const LIVEWIRE_DOCS_PATH = path.join(__dirname, "..", "data", "livewire-docs");
+const PEST_DOCS_PATH = path.join(__dirname, "..", "data", "pest-docs");
 
 // Logging function that writes to a separate file instead of standard output
 function log(...args: any[]) {
@@ -61,38 +62,6 @@ function log(...args: any[]) {
 }
 
 /**
- * Interface for form field information
- */
-interface FieldInfo {
-  name: string;
-  url: string;
-  description: string;
-  usage?: string;
-  props?: FieldProp[];
-  examples?: FieldExample[];
-}
-
-/**
- * Interface for field property information
- */
-interface FieldProp {
-  name: string;
-  description: string;
-  type?: string;
-  default?: string;
-  required?: boolean;
-}
-
-/**
- * Interface for field example
- */
-interface FieldExample {
-  title: string;
-  code: string;
-  description?: string;
-}
-
-/**
  * Interface for documentation file
  */
 interface DocFile {
@@ -109,7 +78,7 @@ interface DocPackage {
   name: string;
   path: string;
   description?: string;
-  docType?: "filament" | "laravel" | "livewire"; // Tipo de documentação
+  docType?: "filament" | "laravel" | "livewire" | "pest" ; // Tipo de documentação
 }
 
 /**
@@ -124,9 +93,9 @@ interface DocSearchResult {
 }
 
 /**
- * FilamentServer class that handles the component reference functionality
+ * TallServer class that handles the component reference functionality
  */
-class FilamentServer {
+class TallServer {
   private server: Server;
 
   // Cache for local documentation
@@ -136,7 +105,7 @@ class FilamentServer {
   constructor() {
     this.server = new Server(
       {
-        name: "filament-server",
+        name: "tall-server",
         version: "0.1.0",
       },
       {
@@ -329,6 +298,55 @@ class FilamentServer {
             required: ["query"],
           },
         },
+
+        // Pest docs tools
+        {
+          name: "list_pest_docs",
+          description:
+            "Lists the available documentation files in the Pest documentation",
+          inputSchema: {
+            type: "object",
+            properties: {
+              path: {
+                type: "string",
+                description: "Optional path within the documentation",
+              },
+            },
+          },
+        },
+        {
+          name: "get_pest_doc",
+          description:
+            "Gets the content of a specific file from the Pest documentation",
+          inputSchema: {
+            type: "object",
+            properties: {
+              path: {
+                type: "string",
+                description:
+                  "Path of the file within the documentation (e.g., 'hooks', 'stress-testing', etc.)",
+              },
+            },
+            required: ["path"],
+          },
+        },
+        {
+          name: "search_pest_docs",
+          description:
+            "Searches for a term in the entire local Pest documentation",
+          inputSchema: {
+            type: "object",
+            properties: {
+              query: {
+                type: "string",
+                description:
+                  "Search term (e.g., 'assert', 'mock', 'spy', etc.)",
+              },
+            },
+            required: ["query"],
+          },
+        },
+
       ],
     }));
 
@@ -354,11 +372,19 @@ class FilamentServer {
 
         // Livewire docs handlers
         case "list_livewire_docs":
-          return await this.handleListLivewireDocs(request.params.arguments);
+          return await this.handleListDocs("livewire", request.params.arguments, LIVEWIRE_DOCS_PATH);
         case "get_livewire_doc":
-          return await this.handleGetLivewireDoc(request.params.arguments);
+          return await this.handleGetDoc("livewire", request.params.arguments, LIVEWIRE_DOCS_PATH);
         case "search_livewire_docs":
-          return await this.handleSearchLivewireDocs(request.params.arguments);
+          return await this.handleSearchDocs("livewire", request.params.arguments, LIVEWIRE_DOCS_PATH);
+
+        // Pest docs handlers
+        case "list_pest_docs":
+          return await this.handleListDocs("pest", request.params.arguments, PEST_DOCS_PATH);
+        case "get_pest_doc":
+          return await this.handleGetDoc("pest", request.params.arguments, PEST_DOCS_PATH);
+        case "search_pest_docs":
+          return await this.handleSearchDocs("pest", request.params.arguments, PEST_DOCS_PATH);
 
         default:
           throw new McpError(
@@ -560,7 +586,7 @@ class FilamentServer {
   /**
    * Handle the list_filament_docs tool request
    */
-  private async handleListDocs(args: any) {
+  private async handleListDocsFilament(args: any) {
     try {
       if (!args.package || typeof args.package !== "string") {
         throw new McpError(
@@ -671,7 +697,7 @@ class FilamentServer {
   /**
    * Handle the get_filament_doc tool request
    */
-  private async handleGetDoc(args: any) {
+  private async handleGetDocFilament(args: any) {
     try {
       if (!args.package || typeof args.package !== "string") {
         throw new McpError(
@@ -766,7 +792,7 @@ class FilamentServer {
   /**
    * Handle the search_filament_docs tool request
    */
-  private async handleSearchDocs(args: any) {
+  private async handleSearchInFilamentDocs(args: any) {
     try {
       if (!args.query || typeof args.query !== "string") {
         throw new McpError(
@@ -906,21 +932,21 @@ class FilamentServer {
    * Handle the list_filament_docs tool request
    */
   private async handleListFilamentDocs(args: any) {
-    return this.handleListDocs(args); // Chama o método legado para manter compatibilidade
+    return this.handleListDocsFilament(args); // Chama o método legado para manter compatibilidade
   }
 
   /**
    * Handle the get_filament_doc tool request
    */
   private async handleGetFilamentDoc(args: any) {
-    return this.handleGetDoc(args); // Chama o método legado para manter compatibilidade
+    return this.handleListFilamentDocs(args); // Chama o método legado para manter compatibilidade
   }
 
   /**
    * Handle the search_filament_docs tool request
    */
   private async handleSearchFilamentDocs(args: any) {
-    return this.handleSearchDocs(args); // Chama o método legado para manter compatibilidade
+    return this.handleSearchInFilamentDocs(args); // Chama o método legado para manter compatibilidade
   }
 
   /**
@@ -1196,247 +1222,213 @@ class FilamentServer {
     }
   }
 
-  /**
-   * Handle the list_livewire_docs tool request
-   */
-  private async handleListLivewireDocs(args: any) {
+  private async handleListDocs(toolName: string, args: any, basePath: string) {
     try {
-      const subPath = args && args.path ? args.path.trim() : "";
-
-      // Build the full path to the directory
-      let dirPath = LIVEWIRE_DOCS_PATH;
-
+      const subPath = args?.path?.trim() || "";
+      let dirPath = basePath;
+  
       if (subPath) {
-        dirPath = path.join(dirPath, subPath);
+        dirPath = path.join(basePath, subPath);
       }
-
-      // Check if the directory exists
+  
       try {
         const stats = await statAsync(dirPath);
         if (!stats.isDirectory()) {
           throw new McpError(
             ErrorCode.InvalidParams,
-            `O caminho '${subPath || "/"}' não é um diretório válido`
+            `The path '${subPath || "/"}' is not a valid directory`
           );
         }
       } catch (e) {
         throw new McpError(
           ErrorCode.InvalidParams,
-          `O caminho especificado não existe: ${subPath || "/"}`
+          `The specified path does not exist: ${subPath || "/"}`
         );
       }
-
-      // Read files and directories
+  
       const entries = await readdirAsync(dirPath);
       const files: DocFile[] = [];
-
+  
       for (const entry of entries) {
+        if (entry.startsWith(".")) continue;
+  
         const entryPath = path.join(dirPath, entry);
         const stats = await statAsync(entryPath);
         const isDir = stats.isDirectory();
-
-        // Ignore hidden files
-        if (entry.startsWith(".")) {
-          continue;
-        }
-
-        // Build file object
+  
         const docFile: DocFile = {
           name: this.cleanItemName(entry),
           path: subPath ? `${subPath}/${entry}` : entry,
           isDirectory: isDir,
         };
-
-        // For .md files, try to extract title
+  
         if (!isDir && entry.endsWith(".md")) {
           try {
             const content = await readFileAsync(entryPath, "utf-8");
             docFile.title = this.extractTitleFromMarkdown(content);
-          } catch (e) {
-            // If unable to read, use file name as title
+          } catch {
             docFile.title = this.pathToTitle(entry);
           }
         } else if (isDir) {
-          // For directories, use clean name as title
           docFile.title = this.pathToTitle(entry);
         }
-
+  
         files.push(docFile);
       }
-
-      // Sort: directories first, then files
+  
       files.sort((a, b) => {
         if (a.isDirectory && !b.isDirectory) return -1;
         if (!a.isDirectory && b.isDirectory) return 1;
         return a.path.localeCompare(b.path);
       });
-
+  
       return this.createSuccessResponse({
         path: subPath,
-        files: files,
+        files,
       });
     } catch (error) {
-      log("Erro ao listar arquivos do Livewire:", error);
-      if (error instanceof McpError) {
-        throw error;
-      }
+      log(`Error listing ${toolName} docs:`, error);
+      if (error instanceof McpError) throw error;
+  
       throw new McpError(
         ErrorCode.InternalError,
-        `Erro ao listar arquivos de documentação do Livewire: ${
+        `Failed to list documentation files for ${toolName}: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
     }
   }
-
-  /**
-   * Handle the get_livewire_doc tool request
-   */
-  private async handleGetLivewireDoc(args: any) {
+  
+  private async handleGetDoc(toolName: string, args: any, basePath: string) {
     try {
       if (!args.path || typeof args.path !== "string") {
         throw new McpError(
           ErrorCode.InvalidParams,
-          "O parâmetro 'path' é obrigatório e deve ser uma string"
+          "The 'path' parameter is required and must be a string"
         );
       }
-
+  
       let docPath = args.path.trim();
-
-      // Build the full path to the file
-      let filePath = path.join(LIVEWIRE_DOCS_PATH, docPath);
-
-      // Check for .md extension
+      let filePath = path.join(basePath, docPath);
+  
       if (!filePath.endsWith(".md")) {
         filePath += ".md";
       }
-
-      // Check if the file exists
+  
       try {
         const stats = await statAsync(filePath);
         if (!stats.isFile()) {
           throw new McpError(
             ErrorCode.InvalidParams,
-            `O caminho '${docPath}' não é um arquivo válido`
+            `The path '${docPath}' is not a valid file`
           );
         }
-      } catch (e) {
+      } catch {
         throw new McpError(
           ErrorCode.InvalidParams,
-          `O arquivo solicitado não existe: ${docPath}`
+          `The requested file does not exist: ${docPath}`
         );
       }
-
-      // Check cache
-      const cacheKey = `livewire/${docPath}`;
+  
+      const cacheKey = `${toolName}/${docPath}`;
       if (this.docContentCache.has(cacheKey)) {
         const cachedContent = this.docContentCache.get(cacheKey)!;
         const title = this.extractTitleFromMarkdown(cachedContent);
-
+  
         return this.createSuccessResponse({
           title,
           content: cachedContent,
           path: docPath,
         });
       }
-
-      // Read file content
+  
       const content = await readFileAsync(filePath, "utf-8");
-
-      // Extract title
       const title = this.extractTitleFromMarkdown(content);
-
-      // Save to cache
+  
       this.docContentCache.set(cacheKey, content);
-
+  
       return this.createSuccessResponse({
         title,
         content,
         path: docPath,
       });
     } catch (error) {
-      log("Erro ao obter conteúdo do arquivo Livewire:", error);
-      if (error instanceof McpError) {
-        throw error;
-      }
+      log(`Error getting ${toolName} doc content:`, error);
+      if (error instanceof McpError) throw error;
+  
       throw new McpError(
         ErrorCode.InternalError,
-        `Erro ao obter conteúdo da documentação do Livewire: ${
+        `Failed to get documentation content for ${toolName}: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
     }
   }
-
-  /**
-   * Handle the search_livewire_docs tool request
-   */
-  private async handleSearchLivewireDocs(args: any) {
+  
+  private async handleSearchDocs(toolName: string, args: any, basePath: string) {
     try {
       if (!args.query || typeof args.query !== "string") {
         throw new McpError(
           ErrorCode.InvalidParams,
-          "O parâmetro 'query' é obrigatório e deve ser uma string"
+          "The 'query' parameter is required and must be a string"
         );
       }
-
+  
       const query = args.query.trim().toLowerCase();
-
+  
       if (query.length < 3) {
         throw new McpError(
           ErrorCode.InvalidParams,
-          "O termo de busca deve ter pelo menos 3 caracteres"
+          "The search term must be at least 3 characters long"
         );
       }
-
+  
       const results: DocSearchResult[] = [];
-
-      // Recursive function to search in a directory
+  
       const searchInDirectory = async (
         dirPath: string,
         relativePath: string = ""
       ) => {
         const entries = await readdirAsync(dirPath);
-
+  
         for (const entry of entries) {
+          if (entry.startsWith(".")) continue;
+  
           const entryPath = path.join(dirPath, entry);
           const stats = await statAsync(entryPath);
-
+  
           if (stats.isDirectory()) {
-            // Recursion for subdirectories
             const newRelativePath = relativePath
               ? `${relativePath}/${entry}`
               : entry;
             await searchInDirectory(entryPath, newRelativePath);
           } else if (stats.isFile() && entry.endsWith(".md")) {
-            // Process Markdown files
             let content: string;
-
-            // Check cache
-            const cacheKey = `livewire/${
+            const cacheKey = `${toolName}/${
               relativePath ? `${relativePath}/` : ""
             }${entry}`;
+  
             if (this.docContentCache.has(cacheKey)) {
               content = this.docContentCache.get(cacheKey)!;
             } else {
               content = await readFileAsync(entryPath, "utf-8");
               this.docContentCache.set(cacheKey, content);
             }
-
-            // Search term in content
+  
             if (content.toLowerCase().includes(query)) {
               const title =
                 this.extractTitleFromMarkdown(content) ||
                 this.pathToTitle(entry);
               const excerpt = this.getMarkdownExcerpt(content, query);
               const relevance = this.calculateRelevance(content, query);
-
+  
               results.push({
                 title,
-                path: `${
-                  relativePath ? `${relativePath}/` : ""
-                }${entry}`.replace(/\.md$/, ""),
-                package: "livewire",
+                path: `${relativePath ? `${relativePath}/` : ""}${entry}`.replace(
+                  /\.md$/,
+                  ""
+                ),
+                package: toolName,
                 excerpt,
                 relevance,
               });
@@ -1444,30 +1436,30 @@ class FilamentServer {
           }
         }
       };
-
-      await searchInDirectory(LIVEWIRE_DOCS_PATH);
-
-      // Sort results by relevance
+  
+      await searchInDirectory(basePath);
+  
       results.sort((a, b) => b.relevance - a.relevance);
-
+  
       return this.createSuccessResponse({
         query,
         results,
         count: results.length,
       });
     } catch (error) {
-      log("Erro ao pesquisar na documentação do Livewire:", error);
-      if (error instanceof McpError) {
-        throw error;
-      }
+      log(`Error searching ${toolName} docs:`, error);
+      if (error instanceof McpError) throw error;
+  
       throw new McpError(
         ErrorCode.InternalError,
-        `Erro ao pesquisar na documentação do Livewire: ${
+        `Failed to search documentation for ${toolName}: ${
           error instanceof Error ? error.message : String(error)
         }`
       );
     }
   }
+  
+          
 
   /**
    * Run the server
@@ -1495,7 +1487,7 @@ try {
 }
 
 // Create and run the server
-const server = new FilamentServer();
+const server = new TallServer();
 server.run().catch((error) => {
   log("Server failed to run:", error);
   process.exit(1);
