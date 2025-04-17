@@ -92,7 +92,7 @@ For this, you must have install globally the
 {
   "mcpServers": {
     "tall-server": {
-      "command": "bunx",
+      "command": "npx",
       "args": [
         "tall-server"
       ]
@@ -109,7 +109,7 @@ Add this to your `./codeium/windsurf/model_config.json`:
 {
   "mcpServers": {
     "filament-server": {
-      "command": "bunx",
+      "command": "npx",
       "args": ["tall-server"]
     }
   }
@@ -124,7 +124,7 @@ Add this to your `.cursor/mcp.json`:
 {
   "mcpServers": {
     "filament-server": {
-      "command": "bunx",
+      "command": "npx",
       "args": ["tall-server"]
     }
   }
