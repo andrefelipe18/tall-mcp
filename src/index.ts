@@ -35,7 +35,10 @@ const statAsync = promisify(fs.stat);
 const LOG_ENABLED = true;
 const LOG_FILE = path.join(os.tmpdir(), "filament-mcp-server.log");
 
-const DOCS_BASE_PATH = path.join(__dirname, "..", "data", "filament-docs");
+// Base paths for documentation directories
+const FILAMENT_DOCS_PATH = path.join(__dirname, "..", "data", "filament-docs");
+const LARAVEL_DOCS_PATH = path.join(__dirname, "..", "data", "laravel-docs");
+const LIVEWIRE_DOCS_PATH = path.join(__dirname, "..", "data", "livewire-docs");
 
 // Logging function that writes to a separate file instead of standard output
 function log(...args: any[]) {
@@ -106,6 +109,7 @@ interface DocPackage {
   name: string;
   path: string;
   description?: string;
+  docType?: "filament" | "laravel" | "livewire"; // Tipo de documentação
 }
 
 /**
@@ -158,6 +162,7 @@ class FilamentServer {
   private setupToolHandlers() {
     this.server.setRequestHandler(ListToolsRequestSchema, async () => ({
       tools: [
+        // Filament docs tools
         {
           name: "list_filament_packages",
           description:
@@ -230,19 +235,131 @@ class FilamentServer {
             required: ["query"],
           },
         },
+        // Laravel docs tools
+        {
+          name: "list_laravel_docs",
+          description:
+            "Lists the available documentation files in the Laravel documentation",
+          inputSchema: {
+            type: "object",
+            properties: {
+              path: {
+                type: "string",
+                description: "Optional path within the documentation",
+              },
+            },
+          },
+        },
+        {
+          name: "get_laravel_doc",
+          description:
+            "Gets the content of a specific file from the Laravel documentation",
+          inputSchema: {
+            type: "object",
+            properties: {
+              path: {
+                type: "string",
+                description:
+                  "Path of the file within the documentation (e.g., 'installation', 'routing', etc.)",
+              },
+            },
+            required: ["path"],
+          },
+        },
+        {
+          name: "search_laravel_docs",
+          description:
+            "Searches for a term in the entire local Laravel documentation",
+          inputSchema: {
+            type: "object",
+            properties: {
+              query: {
+                type: "string",
+                description:
+                  "Search term (e.g., 'route', 'middleware', 'config', etc.)",
+              },
+            },
+            required: ["query"],
+          },
+        },
+        // Livewire docs tools
+        {
+          name: "list_livewire_docs",
+          description:
+            "Lists the available documentation files in the Livewire documentation",
+          inputSchema: {
+            type: "object",
+            properties: {
+              path: {
+                type: "string",
+                description: "Optional path within the documentation",
+              },
+            },
+          },
+        },
+        {
+          name: "get_livewire_doc",
+          description:
+            "Gets the content of a specific file from the Livewire documentation",
+          inputSchema: {
+            type: "object",
+            properties: {
+              path: {
+                type: "string",
+                description:
+                  "Path of the file within the documentation (e.g., 'installation', 'components', etc.)",
+              },
+            },
+            required: ["path"],
+          },
+        },
+        {
+          name: "search_livewire_docs",
+          description:
+            "Searches for a term in the entire local Livewire documentation",
+          inputSchema: {
+            type: "object",
+            properties: {
+              query: {
+                type: "string",
+                description:
+                  "Search term (e.g., 'component', 'event', 'form', etc.)",
+              },
+            },
+            required: ["query"],
+          },
+        },
       ],
     }));
 
     this.server.setRequestHandler(CallToolRequestSchema, async (request) => {
       switch (request.params.name) {
+        // Filament docs handlers
         case "list_filament_packages":
-          return await this.handleListPackages();
+          return await this.handleListFilamentPackages();
         case "list_filament_docs":
-          return await this.handleListDocs(request.params.arguments);
+          return await this.handleListFilamentDocs(request.params.arguments);
         case "get_filament_doc":
-          return await this.handleGetDoc(request.params.arguments);
+          return await this.handleGetFilamentDoc(request.params.arguments);
         case "search_filament_docs":
-          return await this.handleSearchDocs(request.params.arguments);
+          return await this.handleSearchFilamentDocs(request.params.arguments);
+
+        // Laravel docs handlers
+        case "list_laravel_docs":
+          return await this.handleListLaravelDocs(request.params.arguments);
+        case "get_laravel_doc":
+          return await this.handleGetLaravelDoc(request.params.arguments);
+        case "search_laravel_docs":
+          return await this.handleSearchLaravelDocs(request.params.arguments);
+
+        // Livewire docs handlers
+        case "list_livewire_docs":
+          return await this.handleListLivewireDocs(request.params.arguments);
+        case "get_livewire_doc":
+          return await this.handleGetLivewireDoc(request.params.arguments);
+        case "search_livewire_docs":
+          return await this.handleSearchLivewireDocs(request.params.arguments);
+
         default:
           throw new McpError(
             ErrorCode.MethodNotFound,
@@ -371,7 +488,7 @@ class FilamentServer {
       }
 
       // Read packages from local directory
-      const packagesPath = path.join(DOCS_BASE_PATH, "packages");
+      const packagesPath = path.join(FILAMENT_DOCS_PATH, "packages");
       const entries = await readdirAsync(packagesPath);
 
       // Filter only directories and build package objects
@@ -456,7 +573,12 @@ class FilamentServer {
       const subPath = args.path ? args.path.trim() : "";
 
       // Build the full path to the directory
-      let dirPath = path.join(DOCS_BASE_PATH, "packages", packageName, "docs");
+      let dirPath = path.join(
+        FILAMENT_DOCS_PATH,
+        "packages",
+        packageName,
+        "docs"
+      );
 
       if (subPath) {
         dirPath = path.join(dirPath, subPath);
@@ -570,7 +692,7 @@ class FilamentServer {
 
       // Build the full path to the file
       let filePath = path.join(
-        DOCS_BASE_PATH,
+        FILAMENT_DOCS_PATH,
         "packages",
         packageName,
         "docs",
@@ -688,7 +810,12 @@ class FilamentServer {
       // Search in all files of each package
       for (const pkg of packagesToSearch) {
         // Build the path to the package's docs folder
-        const docsDir = path.join(DOCS_BASE_PATH, "packages", pkg.name, "docs");
+        const docsDir = path.join(
+          FILAMENT_DOCS_PATH,
+          "packages",
+          pkg.name,
+          "docs"
+        );
 
         // Recursive function to search in a directory
         const searchInDirectory = async (
@@ -764,6 +891,580 @@ class FilamentServer {
       throw new McpError(
         ErrorCode.InternalError,
         `Error searching documentation`
+      );
+    }
+  }
+
+  /**
+   * Handle the list_filament_packages tool request
+   */
+  private async handleListFilamentPackages() {
+    return this.handleListPackages(); // Chama o método legado para manter compatibilidade
+  }
+
+  /**
+   * Handle the list_filament_docs tool request
+   */
+  private async handleListFilamentDocs(args: any) {
+    return this.handleListDocs(args); // Chama o método legado para manter compatibilidade
+  }
+
+  /**
+   * Handle the get_filament_doc tool request
+   */
+  private async handleGetFilamentDoc(args: any) {
+    return this.handleGetDoc(args); // Chama o método legado para manter compatibilidade
+  }
+
+  /**
+   * Handle the search_filament_docs tool request
+   */
+  private async handleSearchFilamentDocs(args: any) {
+    return this.handleSearchDocs(args); // Chama o método legado para manter compatibilidade
+  }
+
+  /**
+   * Handle the list_laravel_docs tool request
+   */
+  private async handleListLaravelDocs(args: any) {
+    try {
+      const subPath = args && args.path ? args.path.trim() : "";
+
+      // Build the full path to the directory
+      let dirPath = LARAVEL_DOCS_PATH;
+
+      if (subPath) {
+        dirPath = path.join(dirPath, subPath);
+      }
+
+      // Check if the directory exists
+      try {
+        const stats = await statAsync(dirPath);
+        if (!stats.isDirectory()) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `O caminho '${subPath || "/"}' não é um diretório válido`
+          );
+        }
+      } catch (e) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `O caminho especificado não existe: ${subPath || "/"}`
+        );
+      }
+
+      // Read files and directories
+      const entries = await readdirAsync(dirPath);
+      const files: DocFile[] = [];
+
+      for (const entry of entries) {
+        const entryPath = path.join(dirPath, entry);
+        const stats = await statAsync(entryPath);
+        const isDir = stats.isDirectory();
+
+        // Ignore hidden files
+        if (entry.startsWith(".")) {
+          continue;
+        }
+
+        // Build file object
+        const docFile: DocFile = {
+          name: this.cleanItemName(entry),
+          path: subPath ? `${subPath}/${entry}` : entry,
+          isDirectory: isDir,
+        };
+
+        // For .md files, try to extract title
+        if (!isDir && entry.endsWith(".md")) {
+          try {
+            const content = await readFileAsync(entryPath, "utf-8");
+            docFile.title = this.extractTitleFromMarkdown(content);
+          } catch (e) {
+            // If unable to read, use file name as title
+            docFile.title = this.pathToTitle(entry);
+          }
+        } else if (isDir) {
+          // For directories, use clean name as title
+          docFile.title = this.pathToTitle(entry);
+        }
+
+        files.push(docFile);
+      }
+
+      // Sort: directories first, then files
+      files.sort((a, b) => {
+        if (a.isDirectory && !b.isDirectory) return -1;
+        if (!a.isDirectory && b.isDirectory) return 1;
+        return a.path.localeCompare(b.path);
+      });
+
+      return this.createSuccessResponse({
+        path: subPath,
+        files: files,
+      });
+    } catch (error) {
+      log("Erro ao listar arquivos do Laravel:", error);
+      if (error instanceof McpError) {
+        throw error;
+      }
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Erro ao listar arquivos de documentação do Laravel: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
+
+  /**
+   * Handle the get_laravel_doc tool request
+   */
+  private async handleGetLaravelDoc(args: any) {
+    try {
+      if (!args.path || typeof args.path !== "string") {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          "O parâmetro 'path' é obrigatório e deve ser uma string"
+        );
+      }
+
+      let docPath = args.path.trim();
+
+      // Build the full path to the file
+      let filePath = path.join(LARAVEL_DOCS_PATH, docPath);
+
+      // Check for .md extension
+      if (!filePath.endsWith(".md")) {
+        filePath += ".md";
+      }
+
+      // Check if the file exists
+      try {
+        const stats = await statAsync(filePath);
+        if (!stats.isFile()) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `O caminho '${docPath}' não é um arquivo válido`
+          );
+        }
+      } catch (e) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `O arquivo solicitado não existe: ${docPath}`
+        );
+      }
+
+      // Check cache
+      const cacheKey = `laravel/${docPath}`;
+      if (this.docContentCache.has(cacheKey)) {
+        const cachedContent = this.docContentCache.get(cacheKey)!;
+        const title = this.extractTitleFromMarkdown(cachedContent);
+
+        return this.createSuccessResponse({
+          title,
+          content: cachedContent,
+          path: docPath,
+        });
+      }
+
+      // Read file content
+      const content = await readFileAsync(filePath, "utf-8");
+
+      // Extract title
+      const title = this.extractTitleFromMarkdown(content);
+
+      // Save to cache
+      this.docContentCache.set(cacheKey, content);
+
+      return this.createSuccessResponse({
+        title,
+        content,
+        path: docPath,
+      });
+    } catch (error) {
+      log("Erro ao obter conteúdo do arquivo Laravel:", error);
+      if (error instanceof McpError) {
+        throw error;
+      }
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Erro ao obter conteúdo da documentação do Laravel: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
+
+  /**
+   * Handle the search_laravel_docs tool request
+   */
+  private async handleSearchLaravelDocs(args: any) {
+    try {
+      if (!args.query || typeof args.query !== "string") {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          "O parâmetro 'query' é obrigatório e deve ser uma string"
+        );
+      }
+
+      const query = args.query.trim().toLowerCase();
+
+      if (query.length < 3) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          "O termo de busca deve ter pelo menos 3 caracteres"
+        );
+      }
+
+      const results: DocSearchResult[] = [];
+
+      // Recursive function to search in a directory
+      const searchInDirectory = async (
+        dirPath: string,
+        relativePath: string = ""
+      ) => {
+        const entries = await readdirAsync(dirPath);
+
+        for (const entry of entries) {
+          const entryPath = path.join(dirPath, entry);
+          const stats = await statAsync(entryPath);
+
+          if (stats.isDirectory()) {
+            // Recursion for subdirectories
+            const newRelativePath = relativePath
+              ? `${relativePath}/${entry}`
+              : entry;
+            await searchInDirectory(entryPath, newRelativePath);
+          } else if (stats.isFile() && entry.endsWith(".md")) {
+            // Process Markdown files
+            let content: string;
+
+            // Check cache
+            const cacheKey = `laravel/${
+              relativePath ? `${relativePath}/` : ""
+            }${entry}`;
+            if (this.docContentCache.has(cacheKey)) {
+              content = this.docContentCache.get(cacheKey)!;
+            } else {
+              content = await readFileAsync(entryPath, "utf-8");
+              this.docContentCache.set(cacheKey, content);
+            }
+
+            // Search term in content
+            if (content.toLowerCase().includes(query)) {
+              const title =
+                this.extractTitleFromMarkdown(content) ||
+                this.pathToTitle(entry);
+              const excerpt = this.getMarkdownExcerpt(content, query);
+              const relevance = this.calculateRelevance(content, query);
+
+              results.push({
+                title,
+                path: `${
+                  relativePath ? `${relativePath}/` : ""
+                }${entry}`.replace(/\.md$/, ""),
+                package: "laravel",
+                excerpt,
+                relevance,
+              });
+            }
+          }
+        }
+      };
+
+      await searchInDirectory(LARAVEL_DOCS_PATH);
+
+      // Sort results by relevance
+      results.sort((a, b) => b.relevance - a.relevance);
+
+      return this.createSuccessResponse({
+        query,
+        results,
+        count: results.length,
+      });
+    } catch (error) {
+      log("Erro ao pesquisar na documentação do Laravel:", error);
+      if (error instanceof McpError) {
+        throw error;
+      }
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Erro ao pesquisar na documentação do Laravel: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
+
+  /**
+   * Handle the list_livewire_docs tool request
+   */
+  private async handleListLivewireDocs(args: any) {
+    try {
+      const subPath = args && args.path ? args.path.trim() : "";
+
+      // Build the full path to the directory
+      let dirPath = LIVEWIRE_DOCS_PATH;
+
+      if (subPath) {
+        dirPath = path.join(dirPath, subPath);
+      }
+
+      // Check if the directory exists
+      try {
+        const stats = await statAsync(dirPath);
+        if (!stats.isDirectory()) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `O caminho '${subPath || "/"}' não é um diretório válido`
+          );
+        }
+      } catch (e) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `O caminho especificado não existe: ${subPath || "/"}`
+        );
+      }
+
+      // Read files and directories
+      const entries = await readdirAsync(dirPath);
+      const files: DocFile[] = [];
+
+      for (const entry of entries) {
+        const entryPath = path.join(dirPath, entry);
+        const stats = await statAsync(entryPath);
+        const isDir = stats.isDirectory();
+
+        // Ignore hidden files
+        if (entry.startsWith(".")) {
+          continue;
+        }
+
+        // Build file object
+        const docFile: DocFile = {
+          name: this.cleanItemName(entry),
+          path: subPath ? `${subPath}/${entry}` : entry,
+          isDirectory: isDir,
+        };
+
+        // For .md files, try to extract title
+        if (!isDir && entry.endsWith(".md")) {
+          try {
+            const content = await readFileAsync(entryPath, "utf-8");
+            docFile.title = this.extractTitleFromMarkdown(content);
+          } catch (e) {
+            // If unable to read, use file name as title
+            docFile.title = this.pathToTitle(entry);
+          }
+        } else if (isDir) {
+          // For directories, use clean name as title
+          docFile.title = this.pathToTitle(entry);
+        }
+
+        files.push(docFile);
+      }
+
+      // Sort: directories first, then files
+      files.sort((a, b) => {
+        if (a.isDirectory && !b.isDirectory) return -1;
+        if (!a.isDirectory && b.isDirectory) return 1;
+        return a.path.localeCompare(b.path);
+      });
+
+      return this.createSuccessResponse({
+        path: subPath,
+        files: files,
+      });
+    } catch (error) {
+      log("Erro ao listar arquivos do Livewire:", error);
+      if (error instanceof McpError) {
+        throw error;
+      }
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Erro ao listar arquivos de documentação do Livewire: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
+
+  /**
+   * Handle the get_livewire_doc tool request
+   */
+  private async handleGetLivewireDoc(args: any) {
+    try {
+      if (!args.path || typeof args.path !== "string") {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          "O parâmetro 'path' é obrigatório e deve ser uma string"
+        );
+      }
+
+      let docPath = args.path.trim();
+
+      // Build the full path to the file
+      let filePath = path.join(LIVEWIRE_DOCS_PATH, docPath);
+
+      // Check for .md extension
+      if (!filePath.endsWith(".md")) {
+        filePath += ".md";
+      }
+
+      // Check if the file exists
+      try {
+        const stats = await statAsync(filePath);
+        if (!stats.isFile()) {
+          throw new McpError(
+            ErrorCode.InvalidParams,
+            `O caminho '${docPath}' não é um arquivo válido`
+          );
+        }
+      } catch (e) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          `O arquivo solicitado não existe: ${docPath}`
+        );
+      }
+
+      // Check cache
+      const cacheKey = `livewire/${docPath}`;
+      if (this.docContentCache.has(cacheKey)) {
+        const cachedContent = this.docContentCache.get(cacheKey)!;
+        const title = this.extractTitleFromMarkdown(cachedContent);
+
+        return this.createSuccessResponse({
+          title,
+          content: cachedContent,
+          path: docPath,
+        });
+      }
+
+      // Read file content
+      const content = await readFileAsync(filePath, "utf-8");
+
+      // Extract title
+      const title = this.extractTitleFromMarkdown(content);
+
+      // Save to cache
+      this.docContentCache.set(cacheKey, content);
+
+      return this.createSuccessResponse({
+        title,
+        content,
+        path: docPath,
+      });
+    } catch (error) {
+      log("Erro ao obter conteúdo do arquivo Livewire:", error);
+      if (error instanceof McpError) {
+        throw error;
+      }
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Erro ao obter conteúdo da documentação do Livewire: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      );
+    }
+  }
+
+  /**
+   * Handle the search_livewire_docs tool request
+   */
+  private async handleSearchLivewireDocs(args: any) {
+    try {
+      if (!args.query || typeof args.query !== "string") {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          "O parâmetro 'query' é obrigatório e deve ser uma string"
+        );
+      }
+
+      const query = args.query.trim().toLowerCase();
+
+      if (query.length < 3) {
+        throw new McpError(
+          ErrorCode.InvalidParams,
+          "O termo de busca deve ter pelo menos 3 caracteres"
+        );
+      }
+
+      const results: DocSearchResult[] = [];
+
+      // Recursive function to search in a directory
+      const searchInDirectory = async (
+        dirPath: string,
+        relativePath: string = ""
+      ) => {
+        const entries = await readdirAsync(dirPath);
+
+        for (const entry of entries) {
+          const entryPath = path.join(dirPath, entry);
+          const stats = await statAsync(entryPath);
+
+          if (stats.isDirectory()) {
+            // Recursion for subdirectories
+            const newRelativePath = relativePath
+              ? `${relativePath}/${entry}`
+              : entry;
+            await searchInDirectory(entryPath, newRelativePath);
+          } else if (stats.isFile() && entry.endsWith(".md")) {
+            // Process Markdown files
+            let content: string;
+
+            // Check cache
+            const cacheKey = `livewire/${
+              relativePath ? `${relativePath}/` : ""
+            }${entry}`;
+            if (this.docContentCache.has(cacheKey)) {
+              content = this.docContentCache.get(cacheKey)!;
+            } else {
+              content = await readFileAsync(entryPath, "utf-8");
+              this.docContentCache.set(cacheKey, content);
+            }
+
+            // Search term in content
+            if (content.toLowerCase().includes(query)) {
+              const title =
+                this.extractTitleFromMarkdown(content) ||
+                this.pathToTitle(entry);
+              const excerpt = this.getMarkdownExcerpt(content, query);
+              const relevance = this.calculateRelevance(content, query);
+
+              results.push({
+                title,
+                path: `${
+                  relativePath ? `${relativePath}/` : ""
+                }${entry}`.replace(/\.md$/, ""),
+                package: "livewire",
+                excerpt,
+                relevance,
+              });
+            }
+          }
+        }
+      };
+
+      await searchInDirectory(LIVEWIRE_DOCS_PATH);
+
+      // Sort results by relevance
+      results.sort((a, b) => b.relevance - a.relevance);
+
+      return this.createSuccessResponse({
+        query,
+        results,
+        count: results.length,
+      });
+    } catch (error) {
+      log("Erro ao pesquisar na documentação do Livewire:", error);
+      if (error instanceof McpError) {
+        throw error;
+      }
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Erro ao pesquisar na documentação do Livewire: ${
+          error instanceof Error ? error.message : String(error)
+        }`
       );
     }
   }
