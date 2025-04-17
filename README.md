@@ -27,6 +27,12 @@ This is a TypeScript-based MCP server that provides reference information for Fi
 - `get_livewire_doc` - Gets the content of a specific file from the Livewire documentation
 - `search_livewire_docs` - Searches for a term across the local Livewire documentation
 
+### Pest Documentation
+
+- `list_pest_docs` - Lists all available documentation files in the Pest documentation
+- `get_pest_doc` - Gets the content of a specific file from the Pest documentation
+- `search_pest_docs` - Searches for a term across the local Pest documentation
+
 ### Functionality
 
 This server:
@@ -35,6 +41,7 @@ This server:
   - `/data/filament-docs` - Filament documentation
   - `/data/laravel-docs` - Laravel documentation
   - `/data/livewire-docs` - Livewire documentation
+  - `/data/pest-docs` - Pest documentation
 - Provides structured navigation through the documentation
 - Allows full-text search across all documentation files
 - Can still scrape information from official documentation sites when needed
@@ -155,6 +162,10 @@ Show me examples of Laravel middleware usage.
 
 ```
 How do Livewire components handle state management?
+```
+
+```
+How do I use Pest for testing in Laravel?
 ```
 
 The AI will use the MCP server to fetch information directly from your local documentation.
