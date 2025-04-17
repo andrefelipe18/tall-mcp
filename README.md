@@ -1,26 +1,43 @@
-# Filament MCP Server
+# Tall MCP Server
 
-MCP server for Filament documentation references
+MCP server for Laravel ecosystem documentation references
 
-This is a TypeScript-based MCP server that provides reference information for Filament components and documentation. It implements a Model Context Protocol (MCP) server that helps AI assistants access Filament documentation locally without requiring online scraping.
+This is a TypeScript-based MCP server that provides reference information for Filament, Laravel, and Livewire documentation. It implements a Model Context Protocol (MCP) server that helps AI assistants access documentation locally without requiring online scraping.
 
 ## Features
 
 ### Tools
+
+#### Filament Documentation
 
 - `list_filament_packages` - Lists all available packages in the local Filament documentation
 - `list_filament_docs` - Lists the documentation files available in a specific package
 - `get_filament_doc` - Gets the content of a specific file from the Filament documentation
 - `search_filament_docs` - Searches for a term across the local Filament documentation
 
+#### Laravel Documentation
+
+- `list_laravel_docs` - Lists all available documentation files in the Laravel documentation
+- `get_laravel_doc` - Gets the content of a specific file from the Laravel documentation
+- `search_laravel_docs` - Searches for a term across the local Laravel documentation
+
+#### Livewire Documentation
+
+- `list_livewire_docs` - Lists all available documentation files in the Livewire documentation
+- `get_livewire_doc` - Gets the content of a specific file from the Livewire documentation
+- `search_livewire_docs` - Searches for a term across the local Livewire documentation
+
 ### Functionality
 
 This server:
 
-- Reads documentation from local Markdown files in the `/data/filament-docs` directory
+- Reads documentation from local Markdown files in the following directories:
+  - `/data/filament-docs` - Filament documentation
+  - `/data/laravel-docs` - Laravel documentation
+  - `/data/livewire-docs` - Livewire documentation
 - Provides structured navigation through the documentation
 - Allows full-text search across all documentation files
-- Can still scrape information from the official Filament documentation site when needed
+- Can still scrape information from official documentation sites when needed
 
 It provides structured data including:
 
@@ -35,29 +52,30 @@ It provides structured data including:
 Install dependencies:
 
 ```bash
-npm install
+bun install
 ```
 
 Build the server:
 
 ```bash
-npm run build
+bun run build
 ```
 
 For development with auto-rebuild:
 
 ```bash
-npm run watch
+bun run watch
 ```
 
 ## Installation
 
 ### Global Installation
 
-You can install this package globally:
+You must install this package globally:
 
 ```bash
-npm install -g filament-mcp-server
+# In the root of the project
+bun install -g .
 ```
 
 ### Claude Desktop Configuration
@@ -67,26 +85,17 @@ To use with Claude Desktop, add the server config:
 On Windows: `%APPDATA%\Claude\claude_desktop_config.json`
 On MacOS: `~/Library/Application Support/Claude/claude_desktop_config.json`
 
-#### Option 1: Using global install
+For this, you must have install globally the 
+
 
 ```json
 {
   "mcpServers": {
-    "filament-server": {
-      "command": "filament-server"
-    }
-  }
-}
-```
-
-#### Option 2: Using npx command
-
-```json
-{
-  "mcpServers": {
-    "filament-server": {
-      "command": "npx",
-      "args": ["-y", "filament-mcp-server"]
+    "tall-server": {
+      "command": "bunx",
+      "args": [
+        "tall-server"
+      ]
     }
   }
 }
@@ -127,21 +136,25 @@ Add this to your `.cursor/mcp.json`:
 Since MCP servers communicate over stdio, debugging can be challenging. We recommend using the [MCP Inspector](https://github.com/modelcontextprotocol/inspector), which is available as a package script:
 
 ```bash
-npm run inspector
+bun run inspector
 ```
 
 The Inspector will provide a URL to access debugging tools in your browser.
 
 ## Usage Examples
 
-Once the server is configured, you can ask Claude or another AI assistant questions about Filament, for example:
+Once the server is configured, you can ask Claude or another AI assistant questions about Filament, Laravel, or Livewire, for example:
 
 ```
 Can you explain how Filament's form validation works?
 ```
 
 ```
-Show me examples of Filament table actions.
+Show me examples of Laravel middleware usage.
 ```
 
-The AI will use the MCP server to fetch information directly from your local Filament documentation.
+```
+How do Livewire components handle state management?
+```
+
+The AI will use the MCP server to fetch information directly from your local documentation.

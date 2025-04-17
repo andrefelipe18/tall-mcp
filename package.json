@@ -1,11 +1,11 @@
 {
-  "name": "filament-mcp-server",
+  "name": "tall-mcp",
   "version": "0.1.0",
   "description": "MCP server for Filament",
   "type": "module",
   "license": "MIT",
   "bin": {
-    "filament-server": "build/index.js"
+    "tall-server": "build/index.js"
   },
   "files": [
     "build"
@@ -28,15 +28,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/andrefelipe18/filament-mcp-server.git"
+    "url": "git+https://github.com/andrefelipe18/tall-mcp.git"
   },
   "author": "André Domingues",
   "bugs": {
-    "url": "https://github.com/andrefelipe18/filament-mcp-server/issues"
+    "url": "https://github.com/andrefelipe18/tall-mcp/issues"
   },
-  "homepage": "https://github.com/andrefelipe18/filament-mcp-server#readme",
+  "homepage": "https://github.com/andrefelipe18/tall-mcp#readme",
   "keywords": [
-    "filament",
+    "tall",
     "MCP",
     "model context protocol",
     "component references"
