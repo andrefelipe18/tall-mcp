@@ -52,19 +52,19 @@ It provides structured data including:
 Install dependencies:
 
 ```bash
-bun install
+npm install
 ```
 
 Build the server:
 
 ```bash
-bun run build
+npm run build
 ```
 
 For development with auto-rebuild:
 
 ```bash
-bun run watch
+npm run watch
 ```
 
 ## Installation
@@ -136,7 +136,7 @@ Add this to your `.cursor/mcp.json`:
 Since MCP servers communicate over stdio, debugging can be challenging. We recommend using the [MCP Inspector](https://github.com/modelcontextprotocol/inspector), which is available as a package script:
 
 ```bash
-bun run inspector
+npm run inspector
 ```
 
 The Inspector will provide a URL to access debugging tools in your browser.
