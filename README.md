@@ -71,11 +71,11 @@ bun run watch
 
 ### Global Installation
 
-You must install this package globally:
+You must install this package globally with npm:
 
 ```bash
 # In the root of the project
-bun install -g .
+npm install -g .
 ```
 
 ### Claude Desktop Configuration
@@ -109,8 +109,8 @@ Add this to your `./codeium/windsurf/model_config.json`:
 {
   "mcpServers": {
     "filament-server": {
-      "command": "npx",
-      "args": ["-y", "filament-mcp-server"]
+      "command": "bunx",
+      "args": ["tall-server"]
     }
   }
 }
@@ -124,8 +124,8 @@ Add this to your `.cursor/mcp.json`:
 {
   "mcpServers": {
     "filament-server": {
-      "command": "npx",
-      "args": ["-y", "filament-mcp-server"]
+      "command": "bunx",
+      "args": ["tall-server"]
     }
   }
 }

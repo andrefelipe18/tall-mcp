@@ -1,7 +1,7 @@
 {
   "name": "tall-mcp",
   "version": "0.1.0",
-  "description": "MCP server for Filament",
+  "description": "MCP server for TALL stack (Tailwind, Alpine, Laravel, Livewire)",
   "type": "module",
   "license": "MIT",
   "bin": {
